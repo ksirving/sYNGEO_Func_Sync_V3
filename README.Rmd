@@ -1,0 +1,123 @@
+---
+output: github_document
+---
+
+<!-- README.md is generated from README.Rmd. Please edit that file -->
+
+```{r, include = FALSE}
+knitr::opts_chunk$set(
+  collapse = TRUE,
+  comment = "#>"
+)
+```
+
+# sYNGEO_Func_Sync_V2
+
+# Code index
+
+1. 01_single_traits_interpolated_abundances_new_cwm.R
+2. 02_sync_single_traits_groups_cwm_cwv_interpolated.R
+3. 03_distance_connectivity.R
+4. 04_statistical_analysis.R
+
+
+
+# 01_single_traits_interpolated_abundances_new_cwm.R
+
+Takes raw abundance data and traits for each species
+cleans and interpolates abundances. 
+Produces CWMs and CMVs (interpolated) for all traits and groups
+
+
+### output_data from scripts 02 & 03 are saved into output_data/sync under .gitignore
+
+# 02_sync_single_traits_groups_cwm_cwv_interpolated.R
+
+calculates synchrony, functional distance and diversity for each trait in each region
+calculates synchrony in environmental variables
+
+
+## 03_distance_connectivity.R
+
+calculates distances and connectivity variable
+joins to all synchrony datasets
+join on water course distance for testing
+
+## 04_statistical_analysis.R
+
+statistical model for drivers of synchrony
+all figures
+
+
+
+
+# Computation:
+
+## CWM and Variance
+
+```{r}
+devtools::install_github("alaindanet/ecocom")
+library(ecocom)
+
+#vector of species abundance
+abun <- rpois(n = 10, lambda = 3)
+# vector of species trait
+trait <- rnorm(n = 10, mean = 10, sd = 3)
+
+# Compute the moments of trait distribution
+calc_cw_moments(trait = trait, weight = abun)
+
+# 
+calc_cw_mean(trait = trait, weight = abun)
+calc_cw_variance(trait = trait, weight = abun)
+```
+
+## Synchrony
+
+Source the function at the beginning of your script:
+```{r}
+source("https://raw.githubusercontent.com/alaindanet/fishcom/master/R/synchrony.R")
+
+sync_mat <- matrix(
+  c(0, 0, 1, 1),
+  nrow = 2,
+  byrow = TRUE,
+  dimnames = list(
+    paste0("t", c(1, 2)),
+    c("sp1", "sp2")
+  )
+)
+
+# Complete synchrony
+sync_mat
+compute_synchrony(cov(sync_mat))
+
+# Complete asynchrony
+async_mat <- sync_mat
+async_mat[, 1] <- rev(async_mat[, 1])
+compute_synchrony(cov(async_mat))
+```
+
+# Temperature data
+
+## Moving average over 12 months
+
+See [doc/b-temperature.html](https://github.com/ksirving/sYNGEO_Func_Sync_V2/blob/main/doc/b-temperature.html)
+
+Water temperature data had too much NA starting from 2008 to be useful.
+
+- Below is the air temperature:
+  - annual moving average: `annual_avg`
+  - summer moving average (june-july-august for all site but the ones located in
+    Australia: november-december-january): `summer_avg`
+
+
+```{r}
+library(tidyverse)
+air_annual_and_summer_avg <- read_csv(
+  here("input_data", "Env", "air_annual_and_summer_avg.csv")
+)
+
+head(air_annual_and_summer_avg)
+```
+

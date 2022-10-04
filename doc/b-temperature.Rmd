@@ -1,0 +1,263 @@
+---
+title: "Temperature data"
+author: "Alain Danet"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+## target knits Rmds in their own session, so load libraries here.
+## source("here::here(packages.R"))
+library(tidyverse)
+library(lubridate)
+library(here)
+```
+
+```{r load-targets, include=FALSE}
+fish_ab <- read_csv(here("input_data", "Bio", "fish_ab.csv")) %>%
+  janitor::clean_names()
+awt <- read_csv(here("input_data", "Env", "awt.csv")) %>%
+  filter(year > 1980)
+no_filt_wt <- read_csv(here("input_data", "Env", "no_filtered_water_temperature.csv"))  %>%
+  filter(siteid %in% unique(fish_ab$site_id)) %>%
+  filter(year(date) >= 1990)
+  
+filt_wt <- read_csv(here("input_data", "Env", "filtered_water_temperature.csv"))  %>%
+  filter(siteid %in% unique(fish_ab$site_id)) %>%
+  filter(year(date) >= 1990)
+
+mv_avg_roll <- read_csv(here("input_data/Env/mv_avg_roll_water_tmp.csv"))
+air_mv_avg_roll <- read_csv(here("input_data/Env/mv_avg_roll_air_temp.csv")) %>%
+  filter(
+    year(date) >= (min(fish_ab$year) - 1) &
+      year(date) <= (max(fish_ab$year) + 1)
+  )
+# Those sites do not have dates, month, or quarter filled
+missing_site <- unique(fish_ab$site_id)[!unique(fish_ab$site_id) %in% unique(air_mv_avg_roll$siteid)]
+
+
+# site location
+load(here("input_data/Env/site_desc_loc.rda"))
+```
+
+## Raw water temperature data
+
+- Confirmation that water temperature goes to maximum
+  end of 2010:
+
+```{r}
+summary(no_filt_wt$date)
+```
+
+- We see a kind of a break between 1995 and 2000, the average temperature
+  increase from 8.25 to 8.6 celsius degrees. It might explain why so much
+  temperature are NA  
+
+```{r}
+no_filt_wt %>%
+  ggplot(aes(y = tmp, x = date)) +
+  geom_smooth()
+```
+
+## Filtered water temperature data 
+
+```{r}
+summary(filt_wt)
+```
+
+```{r}
+filt_wt %>%
+  group_by(date) %>%
+  summarise(
+    n = n(),
+    n_na = sum(is.na(tmp))
+    ) %>%
+  ggplot(aes(y = n, x = date)) +
+  geom_line() +
+  labs(y = "Number of sites")
+```
+
+```{r}
+ti <- no_filt_wt %>%
+  left_join(
+    filt_wt %>%
+      select(-tmp) %>%
+      mutate(excluded = FALSE),
+    by = c("siteid", "date")
+  ) %>%
+mutate(excluded = ifelse(is.na(excluded), TRUE, FALSE))
+
+```
+```{r}
+ti %>%
+  group_by(date) %>%
+  summarise(
+    n = n(),
+    n_na = sum(excluded)
+    ) %>%
+  ggplot(aes(y = n_na, x = date)) +
+  geom_line() +
+  labs(y = "Number of sites")
+```
+
+
+
+
+
+## Moving average dataset 
+
+- Keep only the site that are in the synchrony dataset:
+
+```{r}
+awt_lg <- awt %>%
+  filter(siteid %in% unique(fish_ab$site_id)) %>%
+  pivot_longer(
+    -c(siteid, year),
+    names_to = "variable",
+    values_to = "mv_avg") %>%
+  mutate(variable = str_replace_all(variable,
+      c("tmp_a_ana" = "air",
+        "tmp_w_ama" = "water"
+      )
+    )
+  )
+```
+
+```{r}
+awt_lg_site_avg <- awt_lg %>%
+  group_by(year, variable) %>%
+  summarise(
+    n_na =  sum(is.na(mv_avg)),
+    perc_na = n_na / length(mv_avg),
+    mv_avg = ifelse(
+      n_na / length(mv_avg) < .20,
+      mean(mv_avg, na.rm = TRUE), NA
+      ),
+    .groups = "drop"
+  )
+```
+
+```{r}
+awt_lg %>%
+  ggplot(aes(x = year, y = mv_avg, color = variable)) +
+  geom_smooth() +
+  labs(x = "Year", y = "Temperature (°C)", title = "Moving average window")
+```
+There is no water temperature data after 2008...
+It is may be better to work with air temperature since data goes from 2004 to
+2013.
+
+
+```{r}
+awt_lg_site_avg %>%
+  ggplot(aes(x = year, y = perc_na, color = variable)) +
+  geom_line(size = 3) +
+  labs(x = "Year", y = "Percentage of NA")
+```
+
+```{r}
+fish_ab %>%
+  group_by(year) %>%
+  summarise(n_op = length(unique(site_id))) %>%
+  ggplot(aes(y = n_op, x = year)) +
+  geom_line(size = 3) +
+  labs(x = "Year", y = "# of sampling events")
+```
+
+```{r}
+sites_water_air_tmean_av <- awt_lg %>%
+  pivot_wider(names_from = "variable", values_from = "mv_avg")
+write_csv(
+  sites_water_air_tmean_av,
+  here("input_data", "Env", "sites_water_air_tmean_av.csv")
+)
+```
+
+- Lots of NA after 2005: 
+
+```{r}
+mv_avg_roll %>%
+  mutate(year = year(date)) %>%
+  group_by(siteid, year) %>%
+  summarise(
+    avg = mean(mv_avg_12m, na.rm = TRUE),
+    n_na = sum(is.na(mv_avg_12m))
+    ) %>%
+  ggplot(aes(x = year, y = n_na)) +
+  geom_smooth()
+```
+
+
+
+## 
+
+- For air temperature, we computed annual average based on 12 months moving
+  windows, as well as summer average over three months (July (june-july-august)
+  but winter (novembre-decembre-january) for Australia).
+
+```{r}
+air_annual_and_summer_avg <- air_mv_avg_roll %>%
+  left_join(site_desc_loc %>%
+    select(siteid, country),
+  by = "siteid") %>%
+  mutate(
+    year = year(date),
+    month = month(date)
+    ) %>%
+  group_by(siteid, year) %>%
+  summarise(
+    annual_avg = mean(mv_avg_12m),
+    summer_avg = mean(mv_avg_3m[month == ifelse(country != "AUS", 7, 12)]),
+    .groups = "drop"
+  )
+
+# Check
+mask_mv_avg <- air_mv_avg_roll$siteid == "S10015" & year(air_mv_avg_roll$date) == 2004
+mask_annual_summer_avg <- air_annual_and_summer_avg$siteid == "S10015" &
+  air_annual_and_summer_avg$year == 2004
+## Test annual avg:
+stopifnot(mean(air_mv_avg_roll[mask_mv_avg, ][["mv_avg_12m"]]) ==
+  air_annual_and_summer_avg[mask_annual_summer_avg, ][["annual_avg"]])
+## Test summer avg:
+stopifnot(air_mv_avg_roll[mask_mv_avg, ][["mv_avg_3m"]][7] ==
+  air_annual_and_summer_avg[mask_annual_summer_avg, ][["summer_avg"]])
+## All good
+
+write_csv(
+  air_annual_and_summer_avg,
+  file = here("input_data", "Env", "air_annual_and_summer_avg.csv")
+)
+```
+
+
+
+
+## Analysis
+
+## Reproducibility
+
+<details><summary>Reproducibility receipt</summary>
+
+```{r}
+## datetime
+Sys.time()
+
+## repository
+if(requireNamespace('git2r', quietly = TRUE)) {
+  git2r::repository()
+} else {
+  c(
+    system2("git", args = c("log", "--name-status", "-1"), stdout = TRUE),
+    system2("git", args = c("remote", "-v"), stdout = TRUE)
+  )
+}
+
+## session info
+sessionInfo()
+```
+
+</details>

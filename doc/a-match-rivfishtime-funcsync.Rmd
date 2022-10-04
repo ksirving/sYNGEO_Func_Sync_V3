@@ -1,0 +1,111 @@
+---
+title: "Match spatial points"
+author: "Alain Danet"
+date: "`r format(Sys.time(), '%d %B, %Y')`"
+output:
+  bookdown::html_document2:
+    code_folding: "hide"
+    toc: true
+    toc_float: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+## target knits Rmds in their own session, so load libraries here.
+## source("here::here(packages.R"))
+library(tidyverse)
+library(here)
+```
+
+```{r load-targets, include=FALSE}
+load(here("input_data", "Env", "site_desc_loc.rda"))
+site_desc_loc
+fish_ab <- read_csv(here("input_data", "Bio", "fish_ab.csv")) %>%
+  janitor::clean_names()
+```
+
+# Check match based on siteid
+
+- Get siteid and coordinates 
+
+```{r}
+site_fish_ab <- fish_ab %>%
+  group_by(site_id) %>%
+  summarise(
+    lat = unique(latitude),
+    long = unique(longitude)
+  )
+site_rivfishtime <- site_desc_loc %>%
+  select(
+    site_id = siteid,
+    lat_rft = latitude,
+    long_rft = longitude)
+```
+
+- join both dataset and check coordinates:
+
+```{r}
+check_siteid <- site_fish_ab %>%
+  left_join(site_rivfishtime, by = "site_id") %>%
+  mutate(
+    match_long_lat = (lat == lat_rft & long == long_rft)
+  )
+
+check_siteid %>%
+  filter(! match_long_lat)
+```
+
+All good!!!
+
+
+# Plot for FUN 
+
+```{r}
+library(sf)
+sf_use_s2(use_s2 = FALSE)
+```
+```{r}
+fish_ab_sf <- site_fish_ab %>%
+  st_as_sf(coords = c("long", "lat"), crs = 4326)
+```
+
+
+
+```{r}
+world <- rnaturalearth::ne_countries(
+   scale = "large",
+   type = "countries",
+   returnclass = "sf"
+)
+ggplot(world) +
+  geom_sf() +
+  geom_sf(data = fish_ab_sf)
+```
+
+
+
+## Analysis
+
+## Reproducibility
+
+<details><summary>Reproducibility receipt</summary>
+
+```{r}
+## datetime
+Sys.time()
+
+## repository
+if(requireNamespace('git2r', quietly = TRUE)) {
+  git2r::repository()
+} else {
+  c(
+    system2("git", args = c("log", "--name-status", "-1"), stdout = TRUE),
+    system2("git", args = c("remote", "-v"), stdout = TRUE)
+  )
+}
+
+## session info
+sessionInfo()
+```
+
+</details>
