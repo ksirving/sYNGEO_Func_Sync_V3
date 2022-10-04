@@ -3,3 +3,5 @@
 .RData
 .Ruserdata
 .sync
+## folders to ignore
+output_data/sync
