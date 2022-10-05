@@ -190,7 +190,6 @@ ax=1
   }
   
   
-
 synchrony_axis <- synchronyx %>%
   rename(Site_ID1 = Var1, Site_ID2 = Var2) %>%
   mutate(Pair = paste0(Site_ID1, ".", Site_ID2))
@@ -350,101 +349,4 @@ length(unique(synchrony_axis$Region))
 
 ###save results
 write.csv(synchrony_axis, "output_data/sync/02_between_all_sites_temp_synchrony.csv")
-
-
-
-# Flow synchrony ----------------------------------------------------------
-
-load(file="input_data/Env/flow_data_melt_raw_new_sites.RData") #
-head(melt_flow_raw)
-
-## join and format, years matched,remove NAs - they are from removed sites in prev script
-flow_sites <- full_join(melt_flow_raw, sites, by="SiteID") %>%
-  filter(!year %in% c(2003, 2014)) %>%
-  rename(metric = env_var) %>% na.omit()
-
-head(flow_sites)
-
-regionsID<-unique(flow_sites$BiogeoRegion) # 3 regions
-synchronyx = NULL
-# region = 2
-# ax = 1
-
-regionsID
-
-
-### loop over regions
-for (region in 1:length(regionsID)) {
-  
-  basindata<-flow_sites[flow_sites$BiogeoRegion==regionsID[region],]
-  # head(basindata)
-  basindata <- basindata[order(basindata$SiteID),]
-  
-  ### loop over axis
-  Ntraits<-unique(basindata$metric)
-  # Ntraits
-  
-  for (ax in 1: length(Ntraits)) {
-    
-    trait_data<-basindata[basindata$metric==unique(basindata$metric)[ax],]
-    years <- unique(trait_data$year)
-    
-    # make df wide - mean
-    trait_flow  <- trait_data %>% 
-      dplyr::select(-c( Country, HydroBasin) ) %>%
-      spread(SiteID, Flow) #%>% ## some NAs appear here, don't have all trait scores for all site years
-    
-    # format data
-    trait_flow <- as.data.frame(trait_flow[,-c(1:3)])
-    
-    ### synchrony 
-    cc <- expand.grid(colnames(trait_flow), colnames(trait_flow), KEEP.OUT.ATTRS = FALSE)
-    
-    synchrony <- sapply(seq_len(nrow(cc)), function(k) {
-      i <- cc[k,1]
-      j <- cc[k,2]
-      
-      sync_mat <- matrix(
-        c(trait_flow[, i],trait_flow[,j]),
-        nrow = 10,
-        byrow = F,
-        dimnames = list(years,
-                        c("site1", "site2")
-        )
-      )
-      
-      compute_synchrony(cov(sync_mat))
-    })
-    
-    synchrony<- cbind(cc,synchrony) 
-    
-    ## add traits and region
-    synchrony <- synchrony %>%
-      mutate(Metric = Ntraits[ax], Region = regionsID[region])
-    
-    ## add to main DF
-    synchronyx <- rbind(synchronyx, synchrony)
-
-    
-  }
-  
-  
-}
-
-synchrony_axis <- synchronyx %>%
-  rename(Site_ID1 = Var1, Site_ID2 = Var2) %>%
-  mutate(Pair = paste0(Site_ID1, ".", Site_ID2))
-
-## negative values in distance
-
-head(synchrony_axis)
-length(unique(synchrony_axis$Metric))
-length(unique(synchrony_axis$Region))
-
-
-###save results
-write.csv(synchrony_axis, "output_data/sync/02_between_all_sites_flow_synchrony.csv")
-
-
-
 

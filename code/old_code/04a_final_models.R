@@ -9,7 +9,7 @@ library(tidylog)
 library("easystats")
 # install.packages("PopGenReport")
 library(PopGenReport)
-?lgrMMRR
+
 ## directory for figures
 out.dir <- "/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V2/Figures/"
 

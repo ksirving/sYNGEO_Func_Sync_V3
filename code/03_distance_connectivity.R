@@ -9,7 +9,7 @@ library(tidyverse)
 getwd()
 
 ## directory for figures
-out.dir <- "/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V2/Figures/"
+out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V2/Figures/"
 
 ## upload fish abundance and site data
 originaldata <- read.csv("input_data/Bio/fishdata_selection_basins_same_time_window_10262020.csv")
@@ -31,7 +31,7 @@ head(site1)
 
 ## change names so we know it's for site 1
 site1 <- site1 %>%
-  select(-X) %>%
+  dplyr::select(-X) %>%
   rename(HydroBasin1 = HydroBasin)
 
 ## join site 2
@@ -58,7 +58,6 @@ write.csv(con, "output_data/sync/03_func_sync_connectivity.csv")
 
 rm(con)
 # calculate distance ------------------------------------------------------
-
 
 sync <- read.csv("output_data/sync/03_func_sync_connectivity.csv")
 head(sync)
@@ -177,7 +176,7 @@ load(file = "output_data/sync/03_all_pair_distances.RData") ## syncsites
 
 ## make Pair column
 sync <- sync %>%
-  select(-X) %>%
+  dplyr::select(-X) %>%
   unite(Pair, Site_ID1:Site_ID2,sep = ".", remove=F)
 
 ## take only distance columns
@@ -199,37 +198,6 @@ head(syncDF)
 
 save(syncDF, file = "output_data/sync/03_sync_temp_distances.RData")
 
-##### Flow
-
-sync <- read.csv( "output_data/sync/02_between_all_sites_flow_synchrony.csv")
-head(sync)
-
-load(file = "output_data/sync/03_all_pair_distances.RData") ## syncsites
-
-## make Pair column
-sync <- sync %>%
-  select(-X) %>%
-  unite(Pair, Site_ID1:Site_ID2,sep = ".", remove=F)
-
-## take only distance columns
-sync_sub <- syncsites %>%
-  dplyr::select(Pair:MeanLon)
-
-## join
-all_sync <- left_join(sync, sync_sub, by = "Pair")
-head(all_sync)
-## convert to similarities
-
-syncDF <- all_sync %>%
-  group_by(Region, Metric) %>%
-  mutate(MaxDist = max(Euclid_Dist_Meters)) %>%
-  mutate(Similarity = 1-(Euclid_Dist_Meters/MaxDist))
-
-head(syncDF)
-
-
-save(syncDF, file = "output_data/sync/03_sync_flow_distances.RData")
-
 
 # watercourse V euclid distance -------------------------------------------
 
@@ -242,7 +210,7 @@ head(syncsites)
 syncsites <- syncsites %>%
   mutate(DistMetersEuclid = Euclid_Dist_Meters) %>%
   filter(Connectivity == 1) %>%
-  select(Pair, DistMetersEuclid)
+  dplyr::select(Pair, DistMetersEuclid)
 
 ## water course distance
 watersites <- read.csv2("input_data/sites/Sites_DistancesRiverATLAS_280621.csv")
@@ -251,9 +219,9 @@ head(watersites)
 ## format water course data
 
 watersites <- watersites %>%
-  mutate(Pair = paste(SiteID_Orig, SiteID_Dest, sep =".")) %>%
-  mutate(DistMetersWater = as.numeric(TotLong_Meters)) %>%
-  select(Pair, DistMetersWater, BioRealm, HydroBasin, Country)
+  dplyr::mutate(Pair = paste(SiteID_Orig, SiteID_Dest, sep =".")) %>%
+  dplyr::mutate(DistMetersWater = as.numeric(TotLong_Meters)) %>%
+  dplyr::select(Pair, DistMetersWater, BioRealm, HydroBasin, Country)
 
 head(watersites)
 head(syncsites)
@@ -307,14 +275,12 @@ ratios_big <- ratios %>%
   filter(Ratio > 1) %>%
   separate(Pair, into = c("Site_ID1", "Site_ID2"), remove = F)
 
-dim(ratios_big) ## 242
+dim(ratios_big) ## 484
 
 write.csv(ratios_big, "output_data/03_watercourse_smaller_than_euclid_dist.csv")
 
 head(ratios_big)
 ## add coords
-
-head(SiteCoords)
 
 pairs <- ratios_big$Pair
 pairs
