@@ -10,9 +10,9 @@ library(tidyverse)
 library(tidylog)
 library("easystats")
 library(scales)
-
+getwd()
 ## directory for figures
-out.dir <- "/Users/katieirving/Documents/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V2/Figures/"
+out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V3/Figures/"
 
 ## raw data
 

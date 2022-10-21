@@ -103,8 +103,8 @@ ax=1
       trait_CWV  <- trait_data %>% 
         dplyr::select(-c(X, site_year, Country, HydroBasin, CWM, Latitude, Longitude) ) %>%
         spread(SiteID, CWV) #%>% ## some NAs appear here, don't have all trait scores for all site years
-      
-      # flip data
+      head(trait_CWV)
+      # remove non value columns
       trait_CWM <- (trait_CWM)[,-c(1:3)]
       trait_CWV <- (trait_CWV)[,-c(1:3)]
    
@@ -129,10 +129,10 @@ ax=1
       
       # head(synchrony)
   
-      ### functional diversity: Temporal average of Community Weighted Variance
+      ### diversity: Temporal average of Community Weighted Variance
       
       cc <- expand.grid(colnames(trait_CWV), colnames(trait_CWV), KEEP.OUT.ATTRS = FALSE)
-      
+      cc
       diversity <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
         j <- cc[k,2]
@@ -150,8 +150,8 @@ ax=1
         
       })
       
-      # diversity
-      ### functional distance: Difference in temporal average of Community Weighted Mean
+      diversity
+      ### distance: Difference in temporal average of Community Weighted Mean
       
       cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
 
@@ -167,7 +167,7 @@ ax=1
                           c("site1", "site2")
           )
         )
-        
+        dist_mat
         mean(dist_mat[,1]/dist_mat[,2])
         
       })
