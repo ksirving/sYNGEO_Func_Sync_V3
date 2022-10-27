@@ -12,13 +12,6 @@ library(PopGenReport)
 
 load(file = "output_data/sync/04_temp_pref_env_dist_no_dupl_pairs.RData")
 
-out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V3/Figures/"
-
-
-# Create matrices ---------------------------------------------------------
-
-head(allsyncx)
-
 ## some NAs in sync. find and remove - check in sync code later!!!!!
 ind <- which(is.na(allsyncx$Sync))
 allsyncx[ind,]
@@ -26,6 +19,13 @@ allsyncx <- allsyncx[-ind,]
 sum(is.na(allsyncx))
 
 allsyncx <- na.omit(allsyncx)
+
+out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V3/Figures/"
+
+
+# Create matrices ---------------------------------------------------------
+
+head(allsyncx)
 # ind <- which(is.na(allsyncx$distance))
 
 ## temp pref
@@ -42,9 +42,8 @@ bio_wide <- as.matrix(bio_wide)
 dim(bio_wide)
 ## make into distance object
 bio_wide <- as.dist(bio_wide)
-class(D)
 class(bio_wide)
-write.csv(bio_wide, "output_data/temp_pref_sync_matrix_eu.csv")
+# write.csv(bio_wide, "output_data/temp_pref_sync_matrix_eu.csv")
 
 ## temp sync
 temp_wide <- allsyncx %>%
@@ -70,7 +69,7 @@ MRM(as.dist(bio_wide) ~ as.dist(temp_wide),  nperm=10)
 # View(temp_wide)
 
 
-write.csv(temp_wide, "output_data/temp_sync_matrix_eu.csv")
+# write.csv(temp_wide, "output_data/temp_sync_matrix_eu.csv")
 
 ## diversity
 div_wide <- allsyncx %>%
@@ -88,8 +87,7 @@ div_wide <- as.dist(div_wide)
 div_wide <- as.matrix(div_wide)
 # View(div_wide)
 
-
-write.csv(div_wide, "output_data/temp_diversity_matrix_eu.csv")
+# write.csv(div_wide, "output_data/temp_diversity_matrix_eu.csv")
 
 ## distance
 dist_wide <- allsyncx %>%
@@ -108,7 +106,7 @@ dist_wide <- as.dist(dist_wide)
 dist_wide <- as.matrix(dist_wide)
 # View(dist_wide)
 
-write.csv(dist_wide, "output_data/temp_diversity_matrix_eu.csv")
+# write.csv(dist_wide, "output_data/temp_diversity_matrix_eu.csv")
 
 ## connectivity
 con_wide <- allsyncx %>%
@@ -126,7 +124,7 @@ class(con_wide)
 con_wide <- as.matrix(con_wide)
 # View(dist_wide)
 
-write.csv(con_wide, "output_data/connectivity_matrix_eu.csv")
+# write.csv(con_wide, "output_data/connectivity_matrix_eu.csv")
 
 ## geo distance
 km_wide <- allsyncx %>%
@@ -202,45 +200,42 @@ newX <- temp_wide
 mdmr.res <- mdmr(X = newX, D = bio_wide)
 
 # Mixed effect models -----------------------------------------------------
+
 # install.packages("effects")
+# install.packages("MuMIn")
+library(MuMIn)
+library(lme4)
 library(cowplot) #for manuscript ready figures
 library(sjPlot) #for plotting lmer and glmer mods
 library(sjmisc) 
 library(effects)
 library(sjstats) #use for r2 functions
+library(lmerTest) ## from Luke et al 2016 - evaluating significance in linear mixed-effects models in R
+library("easystats") ## multicolinearality
 
-allsyncx$Connectivity <- as.factor(allsyncx$Connectivity) 
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin") 
 
-mod_mixed = lmer(Sync ~ (annual_avg  + diversity) *  Connectivity + (1 | Site_ID1), data = allsyncx)
+mod_mixed = lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity + 
+                   (1 | Region/Site_ID1) + ## nested siteID1 within region
+                   (1 | Region/Site_ID2), ## nested SiteID 2 within region
+                    REML = T, ## estimates p vals and F test
+                    data = allsyncx)
 
 summary(mod_mixed)
-
-confint(mod_mixed)
-
-library(merTools)
-# install.packages("merTools")
-
-predictInterval(mod_mixed)   # for various model predictions, possibly with new data
-
-REsim(mod_mixed)             # mean, median and sd of the random effect estimates
-
-plotREsim(REsim(mod_mixed))  # plot the interval estimates
-
-library(car)
-install.packages("car")
-
 anova(mod_mixed)
+r2_nakagawa(mod_mixed) ## throwing NA
+# r.squaredGLMM(mod_mixed) ## package not working for R version
+check_singularity(mod_mixed) ## False
 
-## from Luke et al 2016 - evaluating significance in linear mixed-effects models in R
-install.packages("lmerTest")
-library(lmerTest)
-L
+mod_cor = lmer(Sync ~ (distance + annual_avg  + diversity)  + 
+                   (1 | Region/Site_ID1) + ## nested siteID1 within region
+                   (1 | Region/Site_ID2), ## nested SiteID 2 within region
+                 REML = T, ## estimates p vals and F test
+                 data = allsyncx)
 
-Model.REML = lmer(Sync ~ (annual_avg  + diversity) *  Connectivity + (1 | Site_ID1), REML = T, data = allsyncx)
-
-anova(Model.REML) #Performs F test on fixed effects using Satterthwaite approximation
-
-summary(Model.REML) #gives model output with estimated df and p values using Satterthwaite
+check_collinearity(mod_cor) ## all ok, connectivity and interactions not included as not valid
 
 ### plots 
 
@@ -261,104 +256,179 @@ estsTab
 
 
 
-effects_diversity <- effects::effect(term= "diversity", mod= mod_mixed)
+effects_diversity <- effects::effect(term= "diversity:Connectivity", mod= mod_mixed)
 summary(effects_diversity) #output of what the values are
 
-x_div <- as.data.frame(effects_diversity)
-x_div
 
+lmmod <-  lm(Sync ~ 1 + as.factor(Region), data=allsyncx)
+summary(lmmod)
+
+x_div <- as.data.frame(effects_diversity) 
+names(x_div)[3] <- "Sync"
+
+## connectiovity as a factor and change name 
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
 
-ggplot() + 
-  #2
-  geom_point(data=allsyncx, aes(diversity, Sync, colour = Connectivity)) + 
-  #3
-  geom_point(data=x_div, aes(x=diversity, y=fit), color="blue") +
-  #4
-  geom_line(data=x_div, aes(x=diversity, y=fit), color="blue") +
-  #5
-  geom_ribbon(data= x_div, aes(x=diversity, ymin=lower, ymax=upper), alpha= 0.3, fill="blue") +
- 
-  #6
+x_div$Connectivity <- as.factor(x_div$Connectivity)
+x_div$Connectivity <- recode_factor(x_div$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
+
+
+div1<-ggplot() +
+      geom_point(data = allsyncx, aes(x=diversity, y=Sync, colour =Connectivity), size = 0.5) +
+        geom_line(data=x_div, aes(x=diversity, y=Sync, colour =Connectivity)) +
+          geom_ribbon(data= x_div, aes(x=diversity, ymin=lower, ymax=upper, fill = Connectivity), alpha= 0.3) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
   labs(x="Thermal Diversity", y="Trait Synchrony")
 
+div1
+                      
+file.name1 <- paste0(out.dir, "diversity_sync_con.jpg")
+ggsave(div1, filename=file.name1, dpi=300, height=5, width=6)
 
-effects_annualAvg <- effects::effect(term= "annual_avg*Connectivity", mod= mod_mixed)
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= mod_mixed)
 summary(effects_annualAvg) #output of what the values are
 
 x_div <- as.data.frame(effects_annualAvg)
+names(x_div)[3] <- "Sync"
 x_div
 
+## connectivity as a factor and change name for plot legend
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
 
-T1 <- ggplot() + 
-  #2
-  geom_point(data=allsyncx, aes(annual_avg, Sync)) + 
-  #3
-  geom_point(data=x_div, aes(x=annual_avg, y=fit)) +
-  #4
-  geom_line(data=x_div, aes(x=annual_avg, y=fit)) +
-  #5
-  geom_ribbon(data= x_div, aes(x=annual_avg, ymin=lower, ymax=upper), alpha= 0.3, color = "blue") +
-  
-  facet_wrap(~Connectivity) +
-  
-  #6
+x_div$Connectivity <- as.factor(x_div$Connectivity)
+x_div$Connectivity <- recode_factor(x_div$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
+
+T1 <- ggplot() +
+  geom_point(data = allsyncx, aes(x=annual_avg, y=Sync, colour =Connectivity), size = 0.5) +
+  geom_line(data=x_div, aes(x=annual_avg, y=Sync, colour =Connectivity)) +
+  geom_ribbon(data= x_div, aes(x=annual_avg, ymin=lower, ymax=upper, fill = Connectivity), alpha= 0.3) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
   labs(x="Temperature Synchrony", y="Trait Synchrony")
+  
+
+T1
 
 file.name1 <- paste0(out.dir, "temp_sync_con.jpg")
 ggsave(T1, filename=file.name1, dpi=300, height=5, width=6)
 
-effects_diversity <- effects::effect(term= "diversity*Connectivity", mod= mod_mixed)
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= mod_mixed)
 summary(effects_diversity) #output of what the values are
 
-x_div <- as.data.frame(effects_diversity)
+x_div <- as.data.frame(effects_distance)
+names(x_div)[3] <- "Sync"
 x_div
 
+## connectivity as a factor and change name for plot legend
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
 
-D1 <- ggplot() + 
-  #2
-  geom_point(data=allsyncx, aes(diversity, Sync)) + 
-  #3
-  geom_point(data=x_div, aes(x=diversity, y=fit)) +
-  #4
-  geom_line(data=x_div, aes(x=diversity, y=fit)) +
-  #5
-  geom_ribbon(data= x_div, aes(x=diversity, ymin=lower, ymax=upper), alpha= 0.3, color = "blue") +
-  
-  facet_wrap(~Connectivity) +
-  
-  #6
-  labs(x="Thermal Diversity", y="Trait Synchrony")
+x_div$Connectivity <- as.factor(x_div$Connectivity)
+x_div$Connectivity <- recode_factor(x_div$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
 
-file.name1 <- paste0(out.dir, "diversity_sync_con.jpg")
+D1 <-ggplot() +
+  geom_point(data = allsyncx, aes(x=distance, y=Sync, colour =Connectivity), size = 0.5) +
+  geom_line(data=x_div, aes(x=distance, y=Sync, colour =Connectivity)) +
+  geom_ribbon(data= x_div, aes(x=distance, ymin=lower, ymax=upper, fill = Connectivity), alpha= 0.3) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
+  labs(x="Thermal Distance", y="Trait Synchrony")
+
+D1
+
+file.name1 <- paste0(out.dir, "distance_sync_con.jpg")
 ggsave(D1, filename=file.name1, dpi=300, height=5, width=6)
 
-effects_diversity <- effects::effect(term= "DistKM*Connectivity", mod= mod_mixed)
-summary(effects_diversity) #output of what the values are
+names(allsyncx)
 
-x_div <- as.data.frame(effects_diversity)
-x_div
 
-allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+library(merTools)
+# install.packages("merTools")
 
-KM1 <- ggplot() + 
-  #2
-  geom_point(data=allsyncx, aes(DistKM, Sync)) + 
-  #3
-  geom_point(data=x_div, aes(x=DistKM, y=fit)) +
-  #4
-  geom_line(data=x_div, aes(x=DistKM, y=fit)) +
-  #5
-  geom_ribbon(data= x_div, aes(x=DistKM, ymin=lower, ymax=upper), alpha= 0.3, color = "blue") +
-  
-  facet_wrap(~Connectivity) +
-  
-  #6
-  labs(x="Distance (KM)", y="Trait Synchrony")
+predictInterval(mod_mixed)   # for various model predictions, possibly with new data
 
-KM1
+REsim(mod_mixed)             # mean, median and sd of the random effect estimates
 
-file.name1 <- paste0(out.dir, "Euc_dust_con.jpg")
-ggsave(KM1, filename=file.name1, dpi=300, height=5, width=6)
+plotREsim(REsim(mod_mixed))  # plot the interval estimates
+
+library(car)
+install.packages("car")
+install.packages("emmeans")
+anova(mod_mixed)
+
+
+# Mixed effects model with mean and spatial cor ----------------------------
+library(nlme)
+library(car)
+library(emmeans)
+head(allsyncx)
+names(allsyncx)
+
+## calculate means per site
+syncMeans <- allsyncx %>%
+  pivot_longer(c(Sync, distance, diversity, annual_avg), names_to = "Variable", values_to = "Value") %>%
+  group_by(Variable, Region, Trait, Site_ID1, Connectivity) %>%
+  summarise(MeanVals = mean(Value)) %>%
+  pivot_wider(names_from = Variable, values_from = MeanVals) %>%
+  rename(SiteID = Site_ID1)
+
+## upload fish abundance and site data
+originaldata <- read.csv("input_data/Bio/fishdata_selection_basins_same_time_window_10262020.csv")
+head(originaldata)
+
+## take only sites and basins
+sites <- originaldata %>%
+  dplyr::select(SiteID, HydroBasin, Latitude, Longitude) %>%
+  distinct()
+
+## join coords to main df by site
+
+meanSyncx <- left_join(syncMeans, sites, by = "SiteID")
+
+head(sites)
+
+head(meanSyncx)
+
+d <- cbind(meanSyncx, dummy=rep(1, nrow(meanSyncx)))
+
+# d <- d %>% filter(Connectivity == "Between Basin")
+
+## between/within basins have same coord for each site, make dummy coords by adding 2 to between basin. Then
+## spatial correlation will work
+d <- d %>% group_by(Connectivity) %>%
+  mutate(LongitudeD = ifelse(Connectivity == "Between Basin", Longitude +2, Longitude)) %>%
+  mutate(LatitudeD = ifelse(Connectivity == "Between Basin", Latitude +2, Latitude))
+
+## mixed model wth sptail correlation
+modS.mn <- lme(fixed = Sync ~ (distance + annual_avg  + diversity) *  Connectivity, 
+               data = d, 
+               control = lmeControl(opt = "optim"),
+               random = ~ 1 | Region,
+               correlation = corGaus(1, form = ~ LatitudeD + LongitudeD)) 
+
+summary(modS.mn)
+Anova(modS.mn)
+
+
+### plots 
+
+ests <- sjPlot::plot_model(modS.mn, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony (Spatial Correlation)")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_SC.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
+
+estsTab <- sjPlot::tab_model(modS.mn, 
+                             # show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony (Spatial Correlation)")
+?plot_model
+estsTab
+
+lmmod <-  lm(Sync ~ 1 + as.factor(Region), data=syncMeans)
+summary(lmmod)
