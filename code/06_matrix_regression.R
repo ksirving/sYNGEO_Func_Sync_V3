@@ -8,7 +8,7 @@ library(ecodist)
 # remotes::install_github("reumandc/mms")
 getwd()
 # install.packages("PopGenReport")
-library(PopGenReport)
+# library(PopGenReport)
 
 load(file = "output_data/sync/04_temp_pref_env_dist_no_dupl_pairs.RData")
 
@@ -203,7 +203,7 @@ mdmr.res <- mdmr(X = newX, D = bio_wide)
 
 # install.packages("effects")
 # install.packages("MuMIn")
-library(MuMIn)
+# library(MuMIn)
 library(lme4)
 library(cowplot) #for manuscript ready figures
 library(sjPlot) #for plotting lmer and glmer mods
@@ -358,6 +358,68 @@ library(car)
 install.packages("car")
 install.packages("emmeans")
 anova(mod_mixed)
+
+
+# Membership mixed model --------------------------------------------------
+# library(devtools)
+# install_github("jvparidon/lmerMultiMember")
+
+
+library(lmerMultiMember)
+names(allsyncx)
+head(allsyncx)
+dim(allsyncx)
+
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin") 
+
+# allsyncsub <- allsyncx[sample(nrow(allsyncx), 300), ]
+# dim(allsyncsub)
+# allsyncsub <- allsyncx[1:1000,]
+# 
+# ## make longer to get site names for membership model
+allsyncx <- allsyncx %>%
+  pivot_longer(Site_ID1:Site_ID2, names_to = "SiteNumber", values_to = "SiteName")
+
+Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
+Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
+Waj <- interaction_weights(Wa, Wj)
+
+mem_mixed <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity 
+                  + (1 | Region) +
+                    (1 | RegionXSiteName), 
+                  memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                  REML = T,
+                  data = allsyncx)
+object.size(mem_mixed)
+save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
+
+summary(mem_mixed, ddf = "Satterthwaite")
+anova(mem_mixed, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed) 
+
+# r.squaredGLMM(mod_mixed) ## package not working for R version
+check_singularity(mem_mixed) ## False
+plot_model
+### plots 
+sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed) 
+                           # show.values=TRUE, show.p=TRUE,
+                           # title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_MS.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
+
+estsTab <- sjPlot::tab_model(mem_mixed, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+
 
 
 # Mixed effects model with mean and spatial cor ----------------------------
