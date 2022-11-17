@@ -203,13 +203,14 @@ save(syncDF, file = "output_data/sync/03_sync_temp_distances.RData")
 
 library(scales)
 ## euclid distance
-load(file = "output_data/sync/03_all_pair_distances.RData") ## syncsites
-head(syncsites)
+load(file = "output_data/sync/04_temp_pref_env_dist_no_dupl_pairs.RData") ## allsyncx
+head(allsyncx)
 
 ## format euclid - remove sites not in same basin
-syncsites <- syncsites %>%
+syncsites <- allsyncx %>%
   mutate(DistMetersEuclid = Euclid_Dist_Meters) %>%
   filter(Connectivity == 1) %>%
+  filter( !Site_ID1 == Site_ID2) %>% ## remove pairs comrised of same sites
   dplyr::select(Pair, DistMetersEuclid)
 
 ## water course distance
@@ -257,6 +258,31 @@ ggplot(all_sites, aes(x=DistMetersWater/1000, y = DistMetersEuclid/1000)) +
   geom_point() +
   scale_y_continuous(name="Eucliean Distance (km)", labels = comma, limits = c(0, 3000)) +
   scale_x_continuous(name="Water Course Distance (km)", labels = comma, limits = c(0, 3000))
+
+
+# Means of each per basin -------------------------------------------------
+
+head(all_sites)
+
+meanDist <- all_sites %>%
+  pivot_longer(DistMetersEuclid:DistMetersWater, names_to = "Type", values_to = "distance") %>%
+  mutate(BiogeoRegion = case_when(Country %in% c("FIN", "SWE", "GBR", "ESP", "FRA") ~ "Europe",
+                                  Country== "AUS" ~ "Oceania", Country == "USA" ~ "USA")) %>%
+  group_by(BiogeoRegion, HydroBasin, Type) %>%
+  summarise(MeanDist = mean(distance)) %>%
+  mutate(MeanDist = MeanDist/1000, HydroBasin = as.character(HydroBasin)) %>%
+  pivot_wider(names_from = Type, values_from = MeanDist) %>%
+  rename(DistKMEuclid = DistMetersEuclid, DistKMWater = DistMetersWater) %>%
+  mutate(DistDifference = DistKMWater-DistKMEuclid) %>%
+  drop_na()
+
+
+## get overall means
+rowAdd <- c("All", "Mean", mean(meanDist$DistKMEuclid), 
+            mean(meanDist$DistKMWater), mean(meanDist$DistDifference))
+
+rowAdd
+write.csv(meanDist, "output_data/03_mean_distances.csv")
 
 # Checking weird sites ----------------------------------------------------
 

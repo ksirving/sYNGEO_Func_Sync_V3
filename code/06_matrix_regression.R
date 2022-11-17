@@ -407,11 +407,26 @@ mem_mixed <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + log(diversit
                   REML = T,
                   data = allsyncx)
 
-mem_mixed <- lmerMultiMember::lmer(Sync ~ annual_avg *Connectivity +distance
+mem_mixed <- lmerMultiMember::lmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
                                    + (1 | Region) + ## add predictors here to get random effect per region
                                      (1 | RegionXSiteName), 
                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
                                    REML = T,
+                                   data = allsyncx)
+
+mem_mixed <- lmerMultiMember::lmer(Sync ~  (distance*Connectivity)  #   ++ log(diversity)
+                                   + (1 | Region) + ## add predictors here to get random effect per region
+                                     (1 | RegionXSiteName), 
+                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                   REML = T,
+                                   data = allsyncx)
+
+
+mem_mixed_glm <- lmerMultiMember::glmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
+                                   + (1 | Region) + ## add predictors here to get random effect per region
+                                     (1 | RegionXSiteName), 
+                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                   family = gaussian(link = "identity"),
                                    data = allsyncx)
 
 range(allsyncx$Sync)
@@ -419,6 +434,7 @@ plot(mem_mixed)
 lattice::qqmath(mem_mixed)
 plot(mem_mixed, type=c("p","smooth"), col.line=1)
 check_model(mem_mixed)
+
 # summary(mem_mixed)[5]
 # save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
 class(mem_mixed)
@@ -435,8 +451,8 @@ ests <- sjPlot::plot_model(mem_mixed,
                            title="Drivers of Thermal Synchrony")
 
 ests
-file.name1 <- paste0(out.dir, "effect_sizes_MS_logged.jpg")
-ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
+file.name1 <- paste0(out.dir, "effect_sizes_MS_logged_dv_interactions.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
 
 estsTab <- sjPlot::tab_model(mem_mixed, 
                              show.re.var= TRUE, 
