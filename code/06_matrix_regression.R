@@ -363,12 +363,26 @@ anova(mod_mixed)
 # Membership mixed model --------------------------------------------------
 # library(devtools)
 # install_github("jvparidon/lmerMultiMember")
-
+# install.packages("performance")
+library(performance)
+library(lme4)
+library(cowplot) #for manuscript ready figures
+library(sjPlot) #for plotting lmer and glmer mods
+library(sjmisc) 
+library(effects)
+library(sjstats) #use for r2 functions
+library(lmerTest) ## from Luke et al 2016 - evaluating significance in linear mixed-effects models in R
+library("easystats") ## multicolinearality
 
 library(lmerMultiMember)
 names(allsyncx)
 head(allsyncx)
 dim(allsyncx)
+
+hist(allsyncx$Sync)
+hist(allsyncx$distance)
+hist(log(allsyncx$diversity))
+hist(allsyncx$annual_avg)
 
 ## connectiovity as a factor and change name 
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
@@ -386,30 +400,42 @@ Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
 Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
 Waj <- interaction_weights(Wa, Wj)
 
-mem_mixed <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity 
-                  + (1 | Region) +
+mem_mixed <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + log(diversity)) *  Connectivity 
+                  + (1 | Region) + ## add predictors here to get random effect per region
                     (1 | RegionXSiteName), 
                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
                   REML = T,
                   data = allsyncx)
-object.size(mem_mixed)
-save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
 
+mem_mixed <- lmerMultiMember::lmer(Sync ~ annual_avg *Connectivity +distance
+                                   + (1 | Region) + ## add predictors here to get random effect per region
+                                     (1 | RegionXSiteName), 
+                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                   REML = T,
+                                   data = allsyncx)
+
+range(allsyncx$Sync)
+plot(mem_mixed)
+lattice::qqmath(mem_mixed)
+plot(mem_mixed, type=c("p","smooth"), col.line=1)
+check_model(mem_mixed)
+# summary(mem_mixed)[5]
+# save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
+class(mem_mixed)
 summary(mem_mixed, ddf = "Satterthwaite")
 anova(mem_mixed, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed) 
-
-# r.squaredGLMM(mod_mixed) ## package not working for R version
 check_singularity(mem_mixed) ## False
-plot_model
+
 ### plots 
-sjPlot::plot_model(mem_mixed) 
-ests <- sjPlot::plot_model(mem_mixed) 
-                           # show.values=TRUE, show.p=TRUE,
-                           # title="Drivers of Thermal Synchrony")
+class(mem_mixed) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
 
 ests
-file.name1 <- paste0(out.dir, "effect_sizes_MS.jpg")
+file.name1 <- paste0(out.dir, "effect_sizes_MS_logged.jpg")
 ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
 
 estsTab <- sjPlot::tab_model(mem_mixed, 
@@ -418,6 +444,105 @@ estsTab <- sjPlot::tab_model(mem_mixed,
                              dv.labels= "Drivers of Thermal Synchrony")
 
 estsTab
+
+## model without connectivity
+
+mem_mixed_no_con <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + log(diversity)) 
+                                   + (1 | Region) + ## add predictors here to get random effect per region
+                                     (1 | RegionXSiteName), 
+                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                   REML = T,
+                                   data = allsyncx)
+
+range(allsyncx$Sync)
+
+# save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
+class(mem_mixed_no_con)
+summary(mem_mixed_no_con, ddf = "Satterthwaite")
+anova(mem_mixed_no_con, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed_no_con) 
+check_singularity(mem_mixed_no_con) ## False
+
+### plots 
+class(mem_mixed_no_con) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed_no_con)
+ests <- sjPlot::plot_model(mem_mixed_no_con, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_MS_logged_no_con.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
+
+estsTab <- sjPlot::tab_model(mem_mixed_no_con, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+## model with logged synchrony
+
+
+mem_mixed_log_sync <- lmerMultiMember::lmer(log(Sync) ~ (distance + annual_avg  + log(diversity)) * Connectivity
+                                          + (1 | Region) + ## add predictors here to get random effect per region
+                                            (1 | RegionXSiteName), 
+                                          memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                          REML = T,
+                                          data = allsyncx)
+
+
+# save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
+class(mem_mixed_log_sync)
+summary(mem_mixed_log_sync, ddf = "Satterthwaite")
+anova(mem_mixed_log_sync, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed_log_sync) 
+check_singularity(mem_mixed_log_sync) ## False
+
+## diagnistics
+lattice::qqmath(mem_mixed_log_sync)
+plot(mem_mixed_log_sync, type=c("p","smooth"), col.line=1)
+
+### plots 
+class(mem_mixed_log_sync) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed_no_con)
+ests <- sjPlot::plot_model(mem_mixed_log_sync, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_MS_logged_log_sync.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
+
+estsTab <- sjPlot::tab_model(mem_mixed_log_sync, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+
+## model for correlation
+mod_cor = lmer(Sync ~ (distance + annual_avg  + log(diversity)) + Connectivity
+               + (1 | Region) + ## add predictors here to get random effect per region
+                 (1 | RegionXSiteName), 
+               memberships = list(Region = Wa, RegionXSiteName = Waj), 
+               REML = T,
+               data = allsyncx)
+
+check_collinearity(mod_cor) 
+
+syncCor <- cor(data.frame(allsyncx$distance, allsyncx$diversity, allsyncx$annual_avg))
+syncCor
+
+
+## lm to check direction of annual temp
+
+lm1 <- lm(Sync~ (distance + annual_avg  + diversity)*Connectivity, data = allsyncx)
+summary(lm1)
+
+lm2 <- lm(Sync~  annual_avg , data = allsyncx)
+summary(lm2)
 
 
 

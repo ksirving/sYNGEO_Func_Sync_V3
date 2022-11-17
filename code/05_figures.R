@@ -191,10 +191,66 @@ M1 <- ggplot(allsync,
   #                      labels = c("Max. Length","Temp Preference")) +
   theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
   scale_y_continuous(name="Functional Synchrony") +
-  scale_x_continuous(name="Environmental Synchrony") 
+  scale_x_continuous(name="Predictors") 
 
 M1
 
 file.name1 <- paste0(out.dir, "trait_all_vars.jpg")
 ggsave(M1, filename=file.name1, dpi=300, height=5, width=6)
+
+
+
+# Boxplots ----------------------------------------------------------------
+
+head(allsync)
+
+## scale predictors
+
+allsyncScaled <- allsync %>%
+  group_by(Region, Connectivity, Variable) %>%
+  filter( !Site_ID1 == Site_ID2)  %>% ## remove pairs comprised of same sites
+  pivot_wider(names_from = Variable, values_from = Values) %>%
+  mutate(DivScaled = (diversity-min(na.omit(diversity)))/
+           (max(na.omit(diversity))-min(na.omit(diversity)))) %>%
+  mutate(DistScaled = (distance-min(na.omit(distance)))/
+           (max(na.omit(distance))-min(na.omit(distance)))) %>%
+  pivot_longer(c(Sync, annual_avg, distance, diversity, DivScaled, DistScaled), names_to = "Variable", values_to = "Values") 
+  # mutate(ValueScaled = (Values-min(na.omit(Values)))/
+  #          (max(na.omit(Values))-min(na.omit(Values))))  
+
+# test <- allsync %>%
+#   filter(Region == "Europe", Connectivity ==1, Variable == "annual_avg")
+
+test
+
+allsyncScaled
+
+b1 <- ggplot(filter(allsyncScaled, !Variable %in%  c("DivScaled", "DistScaled")), aes(x = Variable, y = Values, colour = Variable)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_grid(Connectivity~Region, labeller = labeller(Connectivity = supp.labs, Variable = var.labs))
+
+b1
+
+b2 <- ggplot(allsyncScaled, aes(x = Variable, y = Values, colour = Variable)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_grid(Connectivity~Region, labeller = labeller(Connectivity = supp.labs, Variable = var.labs))
+
+b2
+
+
+b3 <- ggplot(filter(allsyncScaled, !Variable %in% c("diversity", "distance")), aes(x = Variable, y = Values, colour = Variable)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  facet_grid(Connectivity~Region, labeller = labeller(Connectivity = supp.labs, Variable = var.labs))
+
+b3
+
+file.name1 <- paste0(out.dir, "boxplots.jpg")
+ggsave(b3, filename=file.name1, dpi=300, height=5, width=6)
+
+
+# Distance between sites --------------------------------------------------
+
 
