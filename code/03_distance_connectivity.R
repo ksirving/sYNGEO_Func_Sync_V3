@@ -22,7 +22,7 @@ sites <- originaldata %>%
 
 ## all site synchrony
 
-sync <- read.csv("output_data/sync/02_between_all_sites_single_traits_CWM_CWV.csv")
+sync <- read.csv("output_data/sync/02_between_all_sites_single_traits_CWM_CWV_CV.csv")
 head(sync)
 
 ## join first site basin
@@ -138,7 +138,7 @@ save(syncsites, file = "output_data/sync/03_all_pair_distances.RData")
 
 # Combine with single trait DF --------------------------------------------
 
-sync <- read.csv("output_data/sync/02_between_all_sites_single_traits_CWM_CWV.csv")
+sync <- read.csv("output_data/sync/02_between_all_sites_single_traits_CWM_CWV_CV.csv")
 head(sync)
 
 load(file = "output_data/sync/03_all_pair_distances.RData") ## syncsites

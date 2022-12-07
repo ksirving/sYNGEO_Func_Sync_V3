@@ -145,10 +145,10 @@ ggplot(allvals, aes(x= RelAbundDiff, y = NumSpeciesDiff)) +
 #### compare with diversity etc
 
 load(file = "output_data/sync/04_temp_pref_env_dist_no_dupl_pairs.RData")
+load(file = "output_data/sync/05a_diff_species_rel_abundance.RData")
 
-
-
-# allsyncx <- na.omit(allsyncx)
+sum(is.na(allsyncx$diversity2))
+allsyncx <- na.omit(allsyncx)
 
 head(allsyncx)
 
@@ -162,12 +162,13 @@ head(df)
 names(df)
 
 cordf <- df %>%
-  select(distance, diversity, MeanLat, MeanLon, annual_avg, RelAbundDiff, NumSpeciesDiff)
+  select(distance, diversity, diversity2, MeanLat, MeanLon, annual_avg, RelAbundDiff, NumSpeciesDiff)
 
 cor(cordf)
 write.csv(cordf, "output_data/05a_correlations_Species_rel_abund.csv")
 
 cd <- cor(cordf)
+cd
 write.csv(cd, "output_data/05a_correlations_Species_rel_abund_mat.csv")
 
 
@@ -184,6 +185,12 @@ singSpecies <- fish_ab_rel_int %>%
 
 singSpeciessites <- unique(singSpecies$SiteID)
 singSpeciessites
+
+whichSpecies1 <- fish_ab_rel_int  %>%
+  filter(SiteID %in% singSpeciessites) %>%
+  select(Species, site_year, SiteID, Abundance, RelAbundanceSiteYear, Country, Latitude, Longitude) 
+
+
 
 ## get site pairs list
 ss <- expand.grid(singSpeciessites, singSpeciessites, KEEP.OUT.ATTRS = FALSE)
@@ -231,7 +238,7 @@ naPairs <- unique(df$Pair)
 
 # check cwm ~ cwv 
 
-weiVals <- read.csv("output_data/01_trt_single_traits_interpolated_cwm_cmv.csv")
+weiVals <- read.csv("output_data/01_trt_single_traits_interpolated_cwm_cmv_cv.csv")
 
 head(weiVals)
 cor(weiVals$CWM, weiVals$CWV) ## 0.49
@@ -268,14 +275,17 @@ length(unique(ss_sites)) ## 2916
 singSpeciesdf <- df %>%
   filter(Pair %in% ss_sites)
 singSpeciesdf 
-mean(singSpeciesdf$diversity)
+mean(singSpeciesdf$diversity2)
 
 singSpeciesdfmis <- df %>%
   filter(Pair %in% otherSites)
 names(fish_ab_rel_int)
+
 whichSpecies <- fish_ab_rel_int  %>%
   filter(SiteID %in% singSpeciessites) %>%
-  select(Species, site_year, SiteID, Abundance, RelAbundanceSiteYear, Country) 
+  select(Species, site_year, SiteID, Abundance, RelAbundanceSiteYear, Country, Latitude, Longitude) 
+
+whichSpecies
 
 ## some NAs in country, fill and re join for boxplot
 nasF <- whichSpecies %>%
@@ -317,7 +327,7 @@ ggsave(B1, filename=file.name1, dpi=300, height=5, width=6)
 ## boxplot of sites with 2 species, diversity & distance
 
 singSpeciesdfLong <- singSpeciesdf %>%
-  pivot_longer(c(Sync:diversity), names_to="Variable", values_to = "Values")
+  pivot_longer(c(Sync:diversity2), names_to="Variable", values_to = "Values")
 
 B2 <- ggplot(singSpeciesdfLong, aes(x=Variable, y = Values)) +
   geom_boxplot() +
@@ -327,4 +337,56 @@ B2
 
 file.name1 <- paste0(out.dir, "Values_2_species.jpg")
 ggsave(B2, filename=file.name1, dpi=300, height=5, width=6)
+
+
+# plot points -------------------------------------------------------------
+## upload sites
+sites <- read.csv( "input_data/Bio/fish_sites.csv")
+head(sites)
+
+## sites with only 2 species
+species2sites <- whichSpecies %>%
+  select(SiteID, Latitude, Longitude) %>%
+  drop_na(Latitude) %>%
+  distinct() %>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)
+
+## sites with only 2 species
+species1sites <- whichSpecies1 %>%
+  select(SiteID, Latitude, Longitude) %>%
+  drop_na(Latitude) %>%
+  distinct() %>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)
+
+library(mapview)
+library(sf)
+library(RColorBrewer)
+
+## make spatial
+
+sites_sf <- sites %>%
+  st_as_sf(coords=c("Longitude", "Latitude"), crs=4326, remove=F)
+head(sites_sf)
+# webshot::install_phantomjs()
+
+## map
+# set background basemaps:
+basemapsList <- c("Esri.WorldTopoMap", "Esri.WorldImagery",
+                  "Esri.NatGeoWorldMap",
+                  "OpenTopoMap", "OpenStreetMap", 
+                  "CartoDB.Positron", "Stamen.TopOSMFeatures")
+
+mapviewOptions(basemaps=basemapsList, vector.palette = colorRampPalette(c(  "red", "green")) , fgb = FALSE)
+
+
+m1 <- mapview(sites_sf, col.regions = "black",cex = 2, layer.name = "Fish Sites") +
+  mapview(species2sites, col.regions = "red",cex = 3, layer.name = "2 Species Sites") 
+  # mapview(species1sites, col.regions = "blue",cex = 3, layer.name = "1 Species Sites") 
+
+m1@map %>% leaflet::addMeasure(primaryLengthUnit = "meters")
+
+mapshot(m1, url = paste0(getwd(), "/output_data/map_species_sites.html"),
+        file = paste0(getwd(), "/output_data/map_species_sites.png"))
+getwd()
+
 

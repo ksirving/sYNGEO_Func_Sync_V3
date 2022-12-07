@@ -213,13 +213,15 @@ library(sjstats) #use for r2 functions
 library(lmerTest) ## from Luke et al 2016 - evaluating significance in linear mixed-effects models in R
 library("easystats") ## multicolinearality
 
+head(allsyncx)
+
 ## connectiovity as a factor and change name 
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
 allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin") 
 
-mod_mixed = lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity + 
-                   (1 | Region/Site_ID1) + ## nested siteID1 within region
-                   (1 | Region/Site_ID2), ## nested SiteID2 within region
+mod_mixed = lmer(Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
+                   (1 + Region | Site_ID1) + ## nested siteID1 within region
+                   (1 + Region | Site_ID2), ## nested SiteID2 within region
                     REML = T, ## estimates p vals and F test
                     data = allsyncx)
 
@@ -382,6 +384,7 @@ dim(allsyncx)
 hist(allsyncx$Sync)
 hist(allsyncx$distance)
 hist(log(allsyncx$diversity))
+hist(log(allsyncx$diversity2))
 hist(allsyncx$annual_avg)
 
 ## connectiovity as a factor and change name 
@@ -400,14 +403,28 @@ Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
 Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
 Waj <- interaction_weights(Wa, Wj)
 
-mem_mixed <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + log(diversity)) *  Connectivity 
-                  + (1 | Region) + ## add predictors here to get random effect per region
+mem_mixed1 <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + diversity2) *  Connectivity 
+                  + (1 | Region ) + ## add predictors here to get random effect per region
                     (1 | RegionXSiteName), 
                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
                   REML = T,
                   data = allsyncx)
 
-mem_mixed <- lmerMultiMember::lmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
+mem_mixed1a <- lmer(Sync ~ (distance + annual_avg  + diversity2) *  Connectivity 
+                                    + (1 + Region| Region ) + ## add predictors here to get random effect per region
+                                      # (1 | RegionXSiteName), 
+                                    # memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+mem_mixed2 <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity 
+                                    + (1 | Region) + ## add predictors here to get random effect per region
+                                      (1 | RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+mem_mixed <- lmerMultiMember::lmer(Sync ~  ( annual_avg*diversity2  +distance*diversity2)  *Connectivity  #   ++ log(diversity)
                                    + (1 | Region) + ## add predictors here to get random effect per region
                                      (1 | RegionXSiteName), 
                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
@@ -422,12 +439,12 @@ mem_mixed <- lmerMultiMember::lmer(Sync ~  (distance*Connectivity)  #   ++ log(d
                                    data = allsyncx)
 
 
-mem_mixed_glm <- lmerMultiMember::glmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
-                                   + (1 | Region) + ## add predictors here to get random effect per region
-                                     (1 | RegionXSiteName), 
-                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
-                                   family = gaussian(link = "identity"),
-                                   data = allsyncx)
+# mem_mixed_glm <- lmerMultiMember::glmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
+#                                    + (1 | Region) + ## add predictors here to get random effect per region
+#                                      (1 | RegionXSiteName), 
+#                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+#                                    family = gaussian(link = "identity"),
+#                                    data = allsyncx)
 
 range(allsyncx$Sync)
 plot(mem_mixed)
@@ -444,9 +461,9 @@ r2_nakagawa(mem_mixed)
 check_singularity(mem_mixed) ## False
 
 ### plots 
-class(mem_mixed) <- "lmerModLmerTest"
+class(mem_mixed2) <- "lmerModLmerTest"
 # sjPlot::plot_model(mem_mixed) 
-ests <- sjPlot::plot_model(mem_mixed, 
+ests <- sjPlot::plot_model(mem_mixed2, 
                            show.values=TRUE, show.p=TRUE,
                            title="Drivers of Thermal Synchrony")
 

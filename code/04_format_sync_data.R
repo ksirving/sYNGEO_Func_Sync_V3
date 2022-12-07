@@ -24,9 +24,9 @@ head(funcsync)
 
 ## checking missing pairs script 5a
 
-singSpeciesorig <- funcsync %>%
-  filter(Pair %in% otherSites) ## all sync NA values
-dim(singSpeciesorig) ##  1763
+# singSpeciesorig <- funcsync %>%
+#   filter(Pair %in% otherSites) ## all sync NA values
+# dim(singSpeciesorig) ##  1763
 
 # Temp synchrony ----------------------------------------------------------
 
@@ -40,9 +40,9 @@ head(tempsync)
 
 ## checking missing pairs script 5a
 
-singSpeciesorig <- tempsync %>%
-  filter(Pair %in% otherSites) 
-dim(singSpeciesorig) ##  1763
+# singSpeciesorig <- tempsync %>%
+#   filter(Pair %in% otherSites) 
+# dim(singSpeciesorig) ##  1763
 
 # Join --------------------------------------------------------------------
 
@@ -76,8 +76,8 @@ dim(sites)
 
 ## checking missing pairs script 5a
 
-singSpeciesorig <- sites %>%
-  filter(Pair %in% otherSites) ## all the duplicates
+# singSpeciesorig <- sites %>%
+#   filter(Pair %in% otherSites) ## all the duplicates
 
 
 
