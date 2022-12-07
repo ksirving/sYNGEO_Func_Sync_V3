@@ -22,6 +22,11 @@ funcsync <- syncDF %>%
 
 head(funcsync)
 
+## checking missing pairs script 5a
+
+singSpeciesorig <- funcsync %>%
+  filter(Pair %in% otherSites) ## all sync NA values
+dim(singSpeciesorig) ##  1763
 
 # Temp synchrony ----------------------------------------------------------
 
@@ -33,6 +38,11 @@ tempsync <- syncDF %>%
   filter( !Site_ID1 == Site_ID2)## remove pairs comrised of same sites
 head(tempsync)
 
+## checking missing pairs script 5a
+
+singSpeciesorig <- tempsync %>%
+  filter(Pair %in% otherSites) 
+dim(singSpeciesorig) ##  1763
 
 # Join --------------------------------------------------------------------
 
@@ -41,7 +51,7 @@ allsync <- full_join(funcsync, tempsync, by = c("Pair","Site_ID1", "Site_ID2", "
                                                 "Similarity", "MeanLat", "MeanLon", "MaxDist")) %>%
   mutate(DistKM = Euclid_Dist_Meters/1000)
 
-
+save(allsync, file = "output_data/sync/04_temp_pref_env_dist_ALL.RData")
 # Format sites ------------------------------------------------------------
 
 ## some pairs are the same sites but other way around
@@ -63,6 +73,13 @@ sites$Pair[!is.na(sites$whererev)] <- sites$rev[!is.na(sites$whererev)] #replace
 all_sites <- unique(sites$Pair) ## pairs with no reverse duplicate
 length(all_sites) ## 208066 
 dim(sites)
+
+## checking missing pairs script 5a
+
+singSpeciesorig <- sites %>%
+  filter(Pair %in% otherSites) ## all the duplicates
+
+
 
 ## subset original df 
 names(sites)

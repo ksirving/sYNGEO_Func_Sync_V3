@@ -219,7 +219,7 @@ allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Bas
 
 mod_mixed = lmer(Sync ~ (distance + annual_avg  + diversity) *  Connectivity + 
                    (1 | Region/Site_ID1) + ## nested siteID1 within region
-                   (1 | Region/Site_ID2), ## nested SiteID 2 within region
+                   (1 | Region/Site_ID2), ## nested SiteID2 within region
                     REML = T, ## estimates p vals and F test
                     data = allsyncx)
 

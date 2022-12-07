@@ -1,0 +1,8 @@
+,distance,diversity,MeanLat,MeanLon,annual_avg,RelAbundDiff,NumSpeciesDiff
+distance,1.00,0.28,-0.56,-0.27,-0.46,0.05,0.35
+diversity,0.28,1.00,-0.35,-0.32,-0.30,-0.01,0.11
+MeanLat,-0.56,-0.35,1.00,0.75,0.65,-0.11,-0.23
+MeanLon,-0.27,-0.32,0.75,1.00,0.39,-0.08,-0.15
+annual_avg,-0.46,-0.30,0.65,0.39,1.00,0.06,-0.43
+RelAbundDiff,0.05,-0.01,-0.11,-0.08,0.06,1.00,-0.57
+NumSpeciesDiff,0.35,0.11,-0.23,-0.15,-0.43,-0.57,1.00

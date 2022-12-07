@@ -16,7 +16,7 @@ library(tidylog)
 
 getwd()
 ## upload fish abundance and site data
-originaldata <- read.csv(here("input_data/Bio/fishdata_selection_basins_same_time_window_10262020.csv"))
+originaldata <- read.csv("input_data/Bio/fishdata_selection_basins_same_time_window_10262020.csv")
 head(originaldata)
 
 # test <- originaldata %>% filter(SiteID == "S6654")
@@ -24,7 +24,7 @@ head(originaldata)
 
 ## upload and format community weighted mean traits - all groups
 
-trait_matrix <- read.csv(here("output_data/01_trt_single_traits_interpolated_cwm_cmv.csv"))
+trait_matrix <- read.csv("output_data/01_trt_single_traits_interpolated_cwm_cmv.csv")
 head(trait_matrix)
 ## combine all groups
 
@@ -103,7 +103,7 @@ ax=1
       trait_CWV  <- trait_data %>% 
         dplyr::select(-c(X, site_year, Country, HydroBasin, CWM, Latitude, Longitude) ) %>%
         spread(SiteID, CWV) #%>% ## some NAs appear here, don't have all trait scores for all site years
-      head(trait_CWV)
+      # head(trait_CWV)
       # remove non value columns
       trait_CWM <- (trait_CWM)[,-c(1:3)]
       trait_CWV <- (trait_CWV)[,-c(1:3)]
@@ -150,7 +150,29 @@ ax=1
         
       })
       
-      diversity
+      # diversity
+      
+      ## diversity 2: coeficient of variation on CWM
+      
+      diversity2 <- sapply(seq_len(nrow(cc)), function(k) {
+        i <- cc[k,1]
+        j <- cc[k,2]
+        
+        div_mat2 <- matrix(
+          c(trait_CWV[, i],trait_CWV[,j]),
+          nrow = 10,
+          byrow = F,
+          dimnames = list(years,
+                          c("site1", "site2")
+          )
+        )
+        
+        sd(div_mat2)/mean(div_mat2)
+        
+      })
+      
+      # diversity2
+      
       ### distance: Difference in temporal average of Community Weighted Mean
       
       cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
@@ -174,12 +196,12 @@ ax=1
       
       
       ## combine all
-      synchrony <- cbind(cc, synchrony, distance, diversity)
-      
+      synchrony <- cbind(cc, synchrony, distance, diversity, diversity2)
+      synchrony
       ## add traits and region
       synchrony <- synchrony %>%
         mutate(Trait = Ntraits[ax], Region = regionsID[region])
-      
+   
       ## add tio main DF
       synchronyx <- rbind(synchronyx, synchrony)
       
@@ -202,7 +224,7 @@ length(unique(synchrony_axis$Region))
 
 
 ###save results
-write.csv(synchrony_axis, "output_data/sync/02_between_all_sites_single_traits_CWM_CWV.csv")
+write.csv(synchrony_axis, "output_data/sync/02_between_all_sites_single_traits_CWM_CWV_CV.csv")
 
 
 

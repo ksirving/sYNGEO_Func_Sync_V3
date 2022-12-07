@@ -116,7 +116,7 @@ for(s in 1:length(sites)) {
     replace(is.na(.), 0)
   
   site_years <- sort(names(FishInt[, 3:length(colnames(FishInt))]))
-  site_years
+ 
   
   medians <- FishInt %>%
     rowwise() %>% 
@@ -157,7 +157,7 @@ for(s in 1:length(sites)) {
       rowwise() %>%
       mutate(med1= median(c_across(na.omit(c(missing_year_lower1, missing_year_upper1))))) %>%
       mutate(med2 = median(c_across(na.omit(c(missing_year_lower2, missing_year_upper2)))))
-    medians
+    
     ## add colname as missing year
     colnames(medians)[colnames(medians) == "med1"] <- paste(missing_year1)
     colnames(medians)[colnames(medians) == "med2"] <- paste(missing_year2)
@@ -212,6 +212,10 @@ fish_ab_rel_int <- fish_ab_rel_int %>%
   mutate(RelAbundanceSiteYear = (Abundance/TotalAbundanceSiteYear)*100) %>%
   mutate(RelAbundanceSite = (TotalAbundanceSiteSpecies/TotalAbundanceSite)*100)
 
+head(fish_ab_rel_int)
+
+save(fish_ab_rel_int, file="output_data/sync/01_fish_abundances.RData")
+
 # ## remove rare species (species with 2 or less traits) from main df
 # 
 # fish_ab_rel_int <- fish_ab_rel_int %>%
@@ -220,6 +224,8 @@ fish_ab_rel_int <- fish_ab_rel_int %>%
 # RSp
 
 ## find seasons to check all in summer
+
+load(file="output_data/sync/01_fish_abundances.RData")
 
 head(fish_ab_rel_int)
 unique(fish_ab_rel_int$Month)
@@ -330,7 +336,7 @@ head(trt_sub)
 
 abun_traits <- full_join(fish_abun, trt_sub, by="Species")
 
-head(comMean)
+head(abun_traits)
 
 ## community mean calculate
 comMean <- abun_traits %>%
@@ -338,8 +344,10 @@ comMean <- abun_traits %>%
   pivot_longer(Tp_pref, names_to = "Trait", values_to = "Value") %>%
   group_by(SiteID, Year, site_year, Trait) %>%
   summarise(CWM = calc_cw_mean(trait = Value, weight = Abundance), 
-                               CWV = calc_cw_variance(trait = Value, weight = Abundance))
-
+                               CWV = calc_cw_variance(trait = Value, weight = Abundance)) #%>%
+  # mutate(CV = sd(CWM)/mean(CWM)) ## coef of variation
+  
+comMean
 write.csv(comMean, "output_data/01_cwm_cwv_four_single_traits.csv")
 
 ## add main site info back
