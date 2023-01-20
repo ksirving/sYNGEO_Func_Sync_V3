@@ -67,10 +67,10 @@ compute_synchrony(cov(async_mat))
 ## define biogeogrpahic region
 
 head(all_groups)
-
+regionsID
 regionsID<-unique(all_groups$BiogeoRegion) # 3 regions
 synchronyx = NULL
-region = 3
+region = 1
 ax=1
 
 
@@ -96,21 +96,27 @@ ax=1
       
       # make df wide - mean
       trait_CWM  <- trait_data %>% 
-        dplyr::select(-c(X, site_year, Country, HydroBasin, CWV, Latitude, Longitude) ) %>%
+        dplyr::select(-c(X, site_year, Country, HydroBasin, CWV,CV, Latitude, Longitude) ) %>%
         spread(SiteID, CWM) #%>% ## some NAs appear here, don't have all trait scores for all site years
-      head( trait_CWM)
+      # head( trait_CWM)
       # make df wide - variance
       trait_CWV  <- trait_data %>% 
-        dplyr::select(-c(X, site_year, Country, HydroBasin, CWM, Latitude, Longitude) ) %>%
+        dplyr::select(-c(X, site_year, Country, HydroBasin, CWM,CV,  Latitude, Longitude) ) %>%
         spread(SiteID, CWV) #%>% ## some NAs appear here, don't have all trait scores for all site years
       # head(trait_CWV)
+      # make df wide - CV
+      trait_CV  <- trait_data %>% 
+        dplyr::select(-c(X, site_year, Country, HydroBasin, CWM,CWV,  Latitude, Longitude) ) %>%
+        spread(SiteID, CV) #%>% ## some NAs appear here, don't have all trait scores for all site years
+      # head(trait_CV)
       # remove non value columns
       trait_CWM <- (trait_CWM)[,-c(1:3)]
       trait_CWV <- (trait_CWV)[,-c(1:3)]
+      trait_CV <- (trait_CV)[,-c(1:3)]
    
       ### synchrony 
       cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
-  
+
       synchrony <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
         j <- cc[k,2]
@@ -132,7 +138,7 @@ ax=1
       ### diversity: Temporal average of Community Weighted Variance
       
       cc <- expand.grid(colnames(trait_CWV), colnames(trait_CWV), KEEP.OUT.ATTRS = FALSE)
-      cc
+     
       diversity <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
         j <- cc[k,2]
@@ -145,21 +151,22 @@ ax=1
                           c("site1", "site2")
           )
         )
-        
+    
         mean(div_mat)
         
       })
       
-      # diversity
+      ## diversity 2: coeficient of variation on thermal index
       
-      ## diversity 2: coeficient of variation on CWM
-      
+      # [1] "S1397.S10015" "S1835.S10015" "S1852.S10015" "S2976.S10015" "S3151.S10015" "S3165.S10015"
+      # [7] "S3191.S10015" "S3269.S10015" "S3450.S10015" "S4223.S10015"
+ 
       diversity2 <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
         j <- cc[k,2]
         
         div_mat2 <- matrix(
-          c(trait_CWV[, i],trait_CWV[,j]),
+          c(trait_CV[, i],trait_CV[,j]),
           nrow = 10,
           byrow = F,
           dimnames = list(years,
@@ -167,8 +174,8 @@ ax=1
           )
         )
         
-        sd(div_mat2)/mean(div_mat2)
-        
+        mean(div_mat2)
+      
       })
       
       # diversity2
@@ -226,7 +233,15 @@ length(unique(synchrony_axis$Region))
 ###save results
 write.csv(synchrony_axis, "output_data/sync/02_between_all_sites_single_traits_CWM_CWV_CV.csv")
 
-
+## checking diverasity2 nas
+# synchrony_axis <- read.csv( "output_data/sync/02_between_all_sites_single_traits_CWM_CWV_CV.csv")
+# head(synchrony_axis)
+# 
+# ind <- which(is.na(synchrony_axis$diversity2))
+# length(ind) ## 62697
+# test <- synchrony_axis[ind,]
+# 
+# test$Pair[1:10]
 
 # Climate synchrony-------------------------------------------------------------------------
 

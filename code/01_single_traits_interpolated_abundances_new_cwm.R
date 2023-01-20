@@ -64,7 +64,7 @@ tally <- fish_ab %>%
   distinct() %>%
   tally()
 
-# head(tally) ## some have less than 8 years - remove
+head(tally) ## some have less than 8 years - remove
 # 
 # remove_sites <- tally %>%
 #   filter(n < 8) 
@@ -102,8 +102,9 @@ sites <- unique(fish_ab$SiteID)
 
 ## define df 
 mediansx <- NULL
+head(fish_ab)
 
-## change to median of year before and year after?
+## median of year before and year after
 s=3
 for(s in 1:length(sites)) {
   
@@ -114,16 +115,17 @@ for(s in 1:length(sites)) {
     select(-c(TimeSeriesID,SurveyID, Quarter, UnitAbundance,SourceID, Protocol:ORIGIN )) %>% 
     pivot_wider(names_from = "Year", values_from = "Abundance") %>%
     replace(is.na(.), 0)
-  
+  # FishInt
   site_years <- sort(names(FishInt[, 3:length(colnames(FishInt))]))
- 
+  # site_years
   
   medians <- FishInt %>%
     rowwise() %>% 
     dplyr::select(order(colnames(FishInt))) %>% 
     dplyr::select(Species, SiteID, starts_with("2")) #%>% ## order columns by year
     # mutate(med = median(c_across(where(is.numeric)), na.rm = TRUE))
-
+  # medians
+  
   
   if (sum(years %in% site_years == F)==1) {
     ## if 1 year is missing then interpolate
@@ -338,17 +340,34 @@ abun_traits <- full_join(fish_abun, trt_sub, by="Species")
 
 head(abun_traits)
 
+# [1] "S1397.S10015" "S1835.S10015" "S1852.S10015" "S2976.S10015" "S3151.S10015" "S3165.S10015"
+# [7] "S3191.S10015" "S3269.S10015" "S3450.S10015" "S4223.S10015"
+
 ## community mean calculate
 comMean <- abun_traits %>%
   rename(Abundance = RelAbundanceSiteYear) %>%
   pivot_longer(Tp_pref, names_to = "Trait", values_to = "Value") %>%
   group_by(SiteID, Year, site_year, Trait) %>%
-  summarise(CWM = calc_cw_mean(trait = Value, weight = Abundance), 
-                               CWV = calc_cw_variance(trait = Value, weight = Abundance)) #%>%
-  # mutate(CV = sd(CWM)/mean(CWM)) ## coef of variation
+  # mutate(CV = ifelse(Abundance > 0, sd(Value)/mean(Value), 0)) #%>% ##CV of thermal index, if 0 then cv 0
+  summarise(CWM = calc_cw_mean(trait = Value, weight = Abundance), ## cwm
+            CWV = calc_cw_variance(trait = Value, weight = Abundance)) ## cwv
+
+  dim(comMean)
+  ## coeficient of variation: of thermal index
+  comMeanCV <- abun_traits %>%
+    rename(Abundance = RelAbundanceSiteYear) %>%
+    pivot_longer(Tp_pref, names_to = "Trait", values_to = "Value") %>%
+    ungroup() %>%
+    group_by(SiteID, Trait) %>%
+    filter(!Abundance ==0) %>% ## remove species not present in site_year
+    # mutate(CV = ifelse(Abundance > 0, sd(Value)/mean(Value), 0)) #%>% ##CV of thermal index, if 0 then cv 0
+    summarise(CV = sd(na.omit(Value))/mean(na.omit(Value))) ##cv
+            
+## join together
   
-comMean
-write.csv(comMean, "output_data/01_cwm_cwv_four_single_traits.csv")
+ComMean <- full_join(comMean, comMeanCV, by=c("SiteID", "Trait"))
+
+write.csv(ComMean, "output_data/01_cwm_cwv_four_single_traits.csv")
 
 ## add main site info back
 
@@ -360,9 +379,9 @@ fish_ab_t <- fish_ab2 %>%
 
 head(fish_ab_t)
 
-comMeanGeo <- full_join(fish_ab_t, comMean, by = "SiteID")
+comMeanGeo <- full_join(fish_ab_t, ComMean, by = "SiteID")
   
-
+comMeanGeo ## some NAs in CVwhere only 1 species in site and can't be calculated
 ## save
 write.csv(comMeanGeo, "output_data/01_trt_single_traits_interpolated_cwm_cmv.csv")
 
