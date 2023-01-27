@@ -1,5 +1,7 @@
 ### mixed effects models
 
+# install.packages("haven")
+library(haven)
 
 library(tidyverse)
 library(tidylog)
@@ -220,7 +222,8 @@ ggsave(div1, filename=file.name1, dpi=300, height=5, width=6)
 
 
 
-## stepwise model runs
+# stepwise model runs -----------------------------------------------------
+
 
 mem_mixed2 <- lmerMultiMember::lmer(Sync ~  annual_avg
                                     + (1 | Region ) + ## add predictors here to get random effect per region
@@ -381,116 +384,271 @@ r2_nakagawa(mem_mixed2)
 
 ## (diversity2 +distance+annual_avg)*Connectivity
 
+
+
+# random slope tutorial ---------------------------------------------------
+
+
+## tutorial
+popular2data <- read_sav(file ="https://github.com/MultiLevelAnalysis/Datasets-third-edition-Multilevel-book/blob/master/chapter%202/popularity/SPSS/popular2.sav?raw=true")
+
+popular2data <- select(popular2data, pupil, class, extrav, sex, texp, popular)
+
+ggplot(data      = popular2data,
+       aes(x     = extrav,
+           y     = popular,
+           col   = class,
+           group = class))+ #to add the colours for different classes
+  geom_point(size     = 1.2,
+             alpha    = .8,
+             position = "jitter")+ #to add some random noise for plotting purposes
+  theme_minimal()+
+  theme(legend.position = "none")+
+  scale_color_gradientn(colours = rainbow(100))+
+  geom_smooth(method = lm,
+              se     = FALSE,
+              linewidth   = .5, 
+              alpha  = .8)+ # to add regression line
+  labs(title    = "Popularity vs. Extraversion",
+       subtitle = "add colours for different classes and regression lines")
+
+interceptonlymodel <- lmer(formula = popular ~ 1 + (1|class),
+                           data    = popular2data) #to run the model
+
+summary(interceptonlymodel) #to get paramater estimates.
+
+library(sjstats)
+performance::icc(interceptonlymodel)
+
+model1 <- lmer(formula = popular ~ 1 + sex + extrav + (1|class), 
+               data    = popular2data)
+summary(model1)
+
+model2 <- lmer(popular ~ 1 + sex + extrav + texp + (1 | class), data=popular2data)
+summary(model2)
+
+model3 <- lmer(formula = popular ~ 1 + sex + extrav + texp + (1 + sex + extrav | class),
+               data    = popular2data)
+
+summary(model3)
+ranova(model3)
+
+model4 <- lmer(formula = popular ~ 1 + sex + extrav + texp + (1 + extrav |class), 
+               data    = popular2data)
+summary(model4)
+
+model5<-lmer(formula = popular ~ 1 + sex + extrav + texp+ extrav:texp + (1 + extrav | class), 
+             data    = popular2data)
+summary(model5)
+
+ggplot(data = popular2data,
+       aes(x = extrav, 
+           y = popular, 
+           col = as.factor(texp)))+
+  viridis::scale_color_viridis(discrete = TRUE)+
+  geom_point(size     = .7,
+             alpha    = .8, 
+             position = "jitter")+
+  geom_smooth(method = lm,
+              se     = FALSE,
+              size   = 2,
+              alpha  = .8)+
+  theme_minimal()+
+  labs(title    = "Linear Relationship for Different Years of Teacher Experience as Observed", 
+       subtitle = "The linear relationship between the two is not the same for all classes", 
+       col      = "Years of\nTeacher\nExperience")
+
 # mixed model with random slopes ------------------------------------------
+head(allsyncx)
+names(allsyncx)
+interceptonlymodel <- lmer(formula = Sync ~ 1 + (1|Region),
+                           data    = allsyncx) #to run the model
+
+summary(interceptonlymodel) #to get paramater estimates.
+
+
+performance::icc(interceptonlymodel)
+
+model1 <- lmer(formula = Sync ~ 1 + annual_avg + Connectivity + (1|Region),
+               data    = allsyncx) #to run the model
+summary(model1)
+
+model2 <- lmer(formula = Sync ~ 1 + annual_avg + Connectivity + distance +diversity2 + (1|Region),
+               data    = allsyncx) #to run the model
+summary(model2)
+
+
+model3 <- lmer(formula = Sync ~ 1 + annual_avg + Connectivity + distance +diversity2 + 
+                 (1+annual_avg + Connectivity + distance +diversity2|Region),
+                data    = allsyncx) # singular!!! 
+
+summary(model3) ## fixed effects not significant
+ranova(model3)
+
+model4 <- lmer(formula = Sync ~ 1 + annual_avg + Connectivity + distance +diversity2 + 
+                 (1+annual_avg + Connectivity |Region),
+               data    = allsyncx) # singular!!!
+summary(model4)
+ranova(model4)
 
 
 
-mod_mixed = lmer(Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
-                   (annual_avg | Region) + # random slopes
-                   (distance| Region) +
-                   (diversity2| Region) +
-                   (Connectivity| Region), 
-                 REML = T, ## estimates p vals and F test
-                 data = allsyncx)
-mod_mixed
-summary(mod_mixed, ddf = "Satterthwaite")
-anova(mod_mixed, ddf = "Satterthwaite")
-r2_nakagawa(mod_mixed) 
-check_singularity(mod_mixed) ## False
+model5<-lmer(formula = Sync ~ 1 + annual_avg + Connectivity + distance +diversity2 + 
+               (1+annual_avg + diversity2 |Region),
+             data    = allsyncx) # singular!!!
+summary(model5)
+ranova(model5)
 
-lattice::qqmath(mod_mixed)
-plot(mod_mixed, type=c("p","smooth"), col.line=1)
-check_model(mod_mixed)
+
+model6<-lmer(formula = Sync ~ 1 + annual_avg + Connectivity + distance +diversity2 + 
+               (1+annual_avg |Region),
+             data    = allsyncx) # not singular
+summary(model6)
+ranova(model6)
+
+model7<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
+               (1+annual_avg |Region),
+             data    = allsyncx) # not singular!!!
+summary(model7)
+ranova(model7)
+
+
+# Mixed model per region --------------------------------------------------
+
+## mixed model with sitename as random effect
+unique(allsyncx$Region)
+## subset data
+allsyncxEU <- allsyncx %>%
+  filter(Region == "Europe")
+
+allsyncxUS <- allsyncx %>%
+  filter(Region == "USA")
+
+allsyncxAU <- allsyncx %>%
+  filter(Region == "Oceania")
+
+## models per region
+
+modelEU<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
+               (1|SiteName),
+             data    = allsyncxEU) 
+summary(modelEU)
+anova(modelEU)
+r2_nakagawa(modelEU) ## 0.37
+
+modelUS<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
+                (1|SiteName),
+              data    = allsyncxUS) 
+summary(modelUS)
+anova(modelUS)
+r2_nakagawa(modelUS) ## 0.067
+
+modelAU<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
+                (1|SiteName),
+              data    = allsyncxAU) 
+summary(modelAU)
+anova(modelAU)
+r2_nakagawa(modelAU) ## 0.0.9
+
+ggplot(data = popular2data,
+       aes(x = extrav, 
+           y = popular, 
+           col = as.factor(texp)))+
+  viridis::scale_color_viridis(discrete = TRUE)+
+  geom_point(size     = .7,
+             alpha    = .8, 
+             position = "jitter")+
+  geom_smooth(method = lm,
+              se     = FALSE,
+              size   = 2,
+              alpha  = .8)+
+  theme_minimal()+
+  labs(title    = "Linear Relationship for Different Years of Teacher Experience as Observed", 
+       subtitle = "The linear relationship between the two is not the same for all classes", 
+       col      = "Years of\nTeacher\nExperience")
+
+
+# Membership model with random slopes -------------------------------------
+
+Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
+Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
+Waj <- interaction_weights(Wa, Wj)
+
+## model with new diversity measure 
+
+mem_mixed1 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + annual_avg| Region ) + ## add predictors here to get random effect per region
+                                      (1 + annual_avg| RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed1, ddf = "Satterthwaite") 
+ranova(mem_mixed1, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed1) ## 0.693
+
+mem_mixed2 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + annual_avg + diversity2 +distance| Region ) + ## add predictors here to get random effect per region
+                                      (1 + annual_avg+ diversity2 +distance| RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed2, ddf = "Satterthwaite")
+ranova(mem_mixed2, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed2) ## singular! some variance is zero, conditional r2 is NA
+check_singularity(mem_mixed2) ## true
+
+mem_mixed3 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + diversity2 | Region ) + ## add predictors here to get random effect per region
+                                      (1 + diversity2 | RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed3, ddf = "Satterthwaite")
+ranova(mem_mixed3, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed3) ## 0.541
+check_singularity(mem_mixed3) ## False
+
+mem_mixed4 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + diversity2 + annual_avg| Region ) + ## add predictors here to get random effect per region
+                                      (1 + diversity2 + annual_avg| RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed4, ddf = "Satterthwaite")
+ranova(mem_mixed4, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed4) ## NA
+check_singularity(mem_mixed4) ## True
+
+lattice::qqmath(mem_mixed1)
+plot(mem_mixed1, type=c("p","smooth"), col.line=1)
+# check_model(mem_mixed1)
 
 ### plots 
-# class(mod_mixed) <- "lmerModLmerTest"
+class(mem_mixed1) <- "lmerModLmerTest"
 # sjPlot::plot_model(mem_mixed) 
-ests <- sjPlot::plot_model(mod_mixed, 
+ests <- sjPlot::plot_model(mem_mixed1, 
                            show.values=TRUE, show.p=TRUE,
                            title="Drivers of Thermal Synchrony")
 
 ests
-file.name1 <- paste0(out.dir, "effect_sizes_random_slopes.jpg")
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2.jpg")
 ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
 
-estsTab <- sjPlot::tab_model(mod_mixed, 
+estsTab <- sjPlot::tab_model(mem_mixed1, 
                              show.re.var= TRUE, 
                              pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
                              dv.labels= "Drivers of Thermal Synchrony")
 
 estsTab
 
-
-
-mem_mixed1a <- lmer(Sync ~ (distance + annual_avg  + diversity2) *  Connectivity 
-                    + (1 + Region| Region ) + ## add predictors here to get random effect per region
-                      # (1 | RegionXSiteName), 
-                      # memberships = list(Region = Wa, RegionXSiteName = Waj), 
-                      REML = T,
-                    data = allsyncx)
-
-
-
-mem_mixed <- lmerMultiMember::lmer(Sync ~  ( annual_avg*diversity2  +distance*diversity2)  *Connectivity  #   ++ log(diversity)
-                                   + (1 | Region) + ## add predictors here to get random effect per region
-                                     (1 | RegionXSiteName), 
-                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
-                                   REML = T,
-                                   data = allsyncx)
-
-mem_mixed <- lmerMultiMember::lmer(Sync ~  (distance*Connectivity)  #   ++ log(diversity)
-                                   + (1 | Region) + ## add predictors here to get random effect per region
-                                     (1 | RegionXSiteName), 
-                                   memberships = list(Region = Wa, RegionXSiteName = Waj), 
-                                   REML = T,
-                                   data = allsyncx)
-
-
-# mem_mixed_glm <- lmerMultiMember::glmer(Sync ~  ( annual_avg*log(diversity)  +distance*log(diversity))  *Connectivity  #   ++ log(diversity)
-#                                    + (1 | Region) + ## add predictors here to get random effect per region
-#                                      (1 | RegionXSiteName), 
-#                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
-#                                    family = gaussian(link = "identity"),
-#                                    data = allsyncx)
-
-
-## model without connectivity
-
-mem_mixed_no_con <- lmerMultiMember::lmer(Sync ~ (distance + annual_avg  + log(diversity)) 
-                                          + (1 | Region) + ## add predictors here to get random effect per region
-                                            (1 | RegionXSiteName), 
-                                          memberships = list(Region = Wa, RegionXSiteName = Waj), 
-                                          REML = T,
-                                          data = allsyncx)
-
-range(allsyncx$Sync)
-
-# save(mem_mixed, file = "output_data/models/06_multimembership_model.RData")
-class(mem_mixed_no_con)
-summary(mem_mixed_no_con, ddf = "Satterthwaite")
-anova(mem_mixed_no_con, ddf = "Satterthwaite")
-r2_nakagawa(mem_mixed_no_con) 
-check_singularity(mem_mixed_no_con) ## False
-
-### plots 
-class(mem_mixed_no_con) <- "lmerModLmerTest"
-# sjPlot::plot_model(mem_mixed_no_con)
-ests <- sjPlot::plot_model(mem_mixed_no_con, 
-                           show.values=TRUE, show.p=TRUE,
-                           title="Drivers of Thermal Synchrony")
-
-ests
-file.name1 <- paste0(out.dir, "effect_sizes_MS_logged_no_con.jpg")
-ggsave(ests, filename=file.name1, dpi=300, height=5, width=6)
-
-estsTab <- sjPlot::tab_model(mem_mixed_no_con, 
-                             show.re.var= TRUE, 
-                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
-                             dv.labels= "Drivers of Thermal Synchrony")
-
-estsTab
-
-## model with logged synchrony
 
 
 mem_mixed_log_sync <- lmerMultiMember::lmer(log(Sync) ~ (distance + annual_avg  + log(diversity)) * Connectivity
