@@ -9,9 +9,12 @@ library(ecodist)
 
 library(performance)
 library(lme4)
+
 library(cowplot) #for manuscript ready figures
 library(sjPlot) #for plotting lmer and glmer mods
 library(sjmisc) 
+library(sjlabelled)
+
 library(effects)
 library(sjstats) #use for r2 functions
 library(lmerTest) ## from Luke et al 2016 - evaluating significance in linear mixed-effects models in R
@@ -37,6 +40,7 @@ range(allsyncx$distance)
 ## scale variables
 
 allsyncx <- allsyncx %>%
+  group_by(Region) %>%
   mutate(distance= rescale(distance, to=c(0,1))) %>%
   mutate(diversity2= rescale(diversity2, to=c(0,1)))
 
@@ -64,7 +68,7 @@ hist(allsyncx$diversity2)
 
 ## connectiovity as a factor and change name 
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
-allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin") 
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity,  "1" = "Within Basin", "0" = "Between Basin") 
 
 ## rescale diversity measures between 0-1
 # allsyncx$diversity <- rescale(allsyncx$diversity)
@@ -119,7 +123,7 @@ estsTab
 
 ## model with new diversity measure
 
-mem_mixed1 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+mem_mixed0 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
                                     + (1 | Region ) + ## add predictors here to get random effect per region
                                       (1 | RegionXSiteName), 
                                     memberships = list(Region = Wa, RegionXSiteName = Waj), 
@@ -127,19 +131,19 @@ mem_mixed1 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Co
                                     data = allsyncx)
 
 # (annual_avg +distance+diversity2))*Connectivity
-summary(mem_mixed1, ddf = "Satterthwaite")
-anova(mem_mixed1, ddf = "Satterthwaite")
-r2_nakagawa(mem_mixed1) 
-check_singularity(mem_mixed1) ## False
+summary(mem_mixed0, ddf = "Satterthwaite")
+anova(mem_mixed0, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed0) 
+check_singularity(mem_mixed0) ## False
 
-lattice::qqmath(mem_mixed1)
-plot(mem_mixed1, type=c("p","smooth"), col.line=1)
+# lattice::qqmath(mem_mixed1)
+# plot(mem_mixed1, type=c("p","smooth"), col.line=1)
 # check_model(mem_mixed1)
 
 ### plots 
-class(mem_mixed1) <- "lmerModLmerTest"
+class(mem_mixed0) <- "lmerModLmerTest"
 # sjPlot::plot_model(mem_mixed) 
-ests <- sjPlot::plot_model(mem_mixed1, 
+ests <- sjPlot::plot_model(mem_mixed0, 
                            show.values=TRUE, show.p=TRUE,
                            title="Drivers of Thermal Synchrony")
 
@@ -147,7 +151,7 @@ ests
 file.name1 <- paste0(out.dir, "effect_sizes_diversity2.jpg")
 ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
 
-estsTab <- sjPlot::tab_model(mem_mixed1, 
+estsTab <- sjPlot::tab_model(mem_mixed0, 
                              show.re.var= TRUE, 
                              pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
                              dv.labels= "Drivers of Thermal Synchrony")
@@ -155,14 +159,33 @@ estsTab <- sjPlot::tab_model(mem_mixed1,
 estsTab
 
 ##plot
-summary(mem_mixed1)
+summary(mem_mixed0)
 
 
 lmmod <-  lm(Sync ~ 1 + as.factor(Region), data=allsyncx)
 summary(lmmod)
 
+tempPlot <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("annual_avg","Region", "Connectivity"),
+                               axis.title = c("Temperature Synchrony", "Thermal Trait Synchrony"), pred.type="re", 
+                               ci.lvl=NA)
 
-effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= mem_mixed1)
+
+
+
+divPlot <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("diversity2","Region", "Connectivity"),
+                              axis.title = c("Trait Diversity", "Thermal Trait Synchrony"), 
+                              pred.type="re", ci.lvl=NA)
+divPlot
+
+distPlot <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("distance","Region", "Connectivity"),
+                               axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                               pred.type="re", ci.lvl=NA)
+distPlot
+
+
+
+
+effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= mem_mixed0)
 summary(effects_diversity) #output of what the values are
 
 
@@ -171,18 +194,18 @@ names(x_div)[3] <- "Sync"
 names(x_div)[1] <- "Value"
 x_div$Variable <- "diversity2"
 
-effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= mem_mixed1)
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= mem_mixed0)
 summary(effects_annualAvg) #output of what the values are
-
+effects_annualAvg
 x_temp <- as.data.frame(effects_annualAvg)
 names(x_temp)[3] <- "Sync"
 names(x_temp)[1] <- "Value"
 x_temp$Variable <- "annual_avg"
 x_temp
 
-effects_distance <- effects::effect(term= "distance:Connectivity", mod= mem_mixed1)
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= mem_mixed0)
 summary(effects_distance) #output of what the values are
-
+effects_distance
 x_dist <- as.data.frame(effects_distance)
 names(x_dist)[3] <- "Sync"
 names(x_dist)[1] <- "Value"
@@ -194,10 +217,10 @@ x_all
 ## add column for variable name
 ## connectiovity as a factor and change name 
 allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
-allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity,  "1" = "Within Basin", "0" = "Between Basin") 
 
 x_all$Connectivity <- as.factor(x_all$Connectivity)
-x_all$Connectivity <- recode_factor(x_all$Connectivity, "0" = "Between Basin", "1" = "Within Basin")
+x_all$Connectivity <- recode_factor(x_all$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
 
 head(allsyncx)
 
@@ -217,9 +240,20 @@ div1<-ggplot() +
 
 div1
 
-file.name1 <- paste0(out.dir, "model_figure.jpg")
-ggsave(div1, filename=file.name1, dpi=300, height=5, width=6)
+file.name1 <- paste0(out.dir, "random_intercept_model.jpg")
+ggsave(div1, filename=file.name1, dpi=300, height=7, width=8)
 
+## combine plots
+library("cowplot")
+library(ggpubr)
+# install.packages("ggpubr")
+
+tempSl <- plot_grid(tempPlot, divPlot, distPlot, div1, ### this not working anymore??
+                    labels = c("A", "B", "C", "D"),
+                    ncol = 2, nrow = 2)
+tempSl
+file.name1 <- paste0(out.dir, "interactions_random_intercept.jpg")
+ggsave(tempSl, filename=file.name1, dpi=300, height=8, width=10)
 
 
 # stepwise model runs -----------------------------------------------------
@@ -534,7 +568,7 @@ modelEU<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connecti
              data    = allsyncxEU) 
 summary(modelEU)
 anova(modelEU)
-r2_nakagawa(modelEU) ## 0.37
+r2_nakagawa(modelEU) ## 0.38
 
 modelUS<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
                 (1|SiteName),
@@ -546,27 +580,277 @@ r2_nakagawa(modelUS) ## 0.067
 modelAU<-lmer(formula = Sync ~ (distance + annual_avg  + diversity2) *  Connectivity + 
                 (1|SiteName),
               data    = allsyncxAU) 
-summary(modelAU)
-anova(modelAU)
-r2_nakagawa(modelAU) ## 0.0.9
+# summary(modelAU)
+# anova(modelAU)
+r2_nakagawa(modelAU) ## 0.09
 
-ggplot(data = popular2data,
-       aes(x = extrav, 
-           y = popular, 
-           col = as.factor(texp)))+
-  viridis::scale_color_viridis(discrete = TRUE)+
-  geom_point(size     = .7,
-             alpha    = .8, 
-             position = "jitter")+
-  geom_smooth(method = lm,
-              se     = FALSE,
-              size   = 2,
-              alpha  = .8)+
-  theme_minimal()+
-  labs(title    = "Linear Relationship for Different Years of Teacher Experience as Observed", 
-       subtitle = "The linear relationship between the two is not the same for all classes", 
-       col      = "Years of\nTeacher\nExperience")
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.2,  #To change axis title size
+          axis.textsize.x = 1,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
 
+estsEU <- sjPlot::plot_model(modelEU, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="")
+
+estsEU
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_sep_eu_mod.jpg")
+ggsave(estsEU, filename=file.name1, dpi=300, height=8, width=10)
+
+estsUS <- sjPlot::plot_model(modelUS, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="")
+
+estsUS
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_sep_USA_mod.jpg")
+ggsave(estsUS, filename=file.name1, dpi=300, height=8, width=10)
+
+estsAU <- sjPlot::plot_model(modelAU, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="")
+
+estsAU
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_sep_AU_mod.jpg")
+ggsave(estsAU, filename=file.name1, dpi=300, height=8, width=10)
+
+## combine plots
+# allplot <- plot_grid(estsEU + theme(axis.text.y = element_blank(),
+#                                   axis.ticks.y = element_blank(),
+#                                   axis.title.y = element_blank()), 
+#                      estsUS + theme(axis.text.y = element_blank(),
+#                                     axis.ticks.y = element_blank(),
+#                                     axis.title.y = element_blank()),
+#                       estsAU + theme(axis.text.y = element_blank(),
+#                                      axis.ticks.y = element_blank(),
+#                                      axis.title.y = element_blank()),
+#                      labels = c("EU", "US", "AU"),
+#                      # align = "v",
+#                     nrow = 1)
+# 
+# allplot
+# 
+# file.name1 <- paste0(out.dir, "sync_sep_models_allregions.jpg")
+# ggsave(allplot, filename=file.name1, dpi=300, height=5, width=6)
+
+# estsTab <- sjPlot::tab_model(modelEU, 
+#                              show.re.var= TRUE, 
+#                              pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+#                              dv.labels= "Drivers of Thermal Synchrony")
+# 
+# estsTab
+
+
+
+## interaction plots
+
+effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= modelEU)
+summary(effects_diversity) #output of what the values are
+
+
+x_div <- as.data.frame(effects_diversity) 
+names(x_div)[3] <- "Sync"
+names(x_div)[1] <- "Value"
+x_div$Variable <- "diversity2"
+
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= modelEU)
+summary(effects_annualAvg) #output of what the values are
+
+x_temp <- as.data.frame(effects_annualAvg)
+names(x_temp)[3] <- "Sync"
+names(x_temp)[1] <- "Value"
+x_temp$Variable <- "annual_avg"
+x_temp
+
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= modelEU)
+summary(effects_distance) #output of what the values are
+
+x_dist <- as.data.frame(effects_distance)
+names(x_dist)[3] <- "Sync"
+names(x_dist)[1] <- "Value"
+x_dist$Variable <- "distance"
+x_dist
+
+x_all <- bind_rows(x_div, x_temp, x_dist)
+x_all
+## add column for variable name
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+x_all$Connectivity <- as.factor(x_all$Connectivity)
+x_all$Connectivity <- recode_factor(x_all$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+head(allsyncxEU)
+
+allsyncx1EU <- allsyncxEU %>%
+  pivot_longer(c(diversity2, annual_avg, distance), names_to = "Variable", values_to = "Value")
+
+
+
+EU1<-ggplot() +
+  # geom_point(data = allsyncx1, aes(x=Value, y=Sync, colour = Variable), size = 0.5) +
+  geom_line(data=x_all, aes(x=Value, y=Sync, colour = Variable)) +
+  geom_ribbon(data= x_all, aes(x=Value, ymin=lower, ymax=upper, colour = Variable), alpha= 0.3) +
+  # annotate("text", x = 0.9, y =1.1, label = "r2 =0.378") +
+  # geom_text(data = ann_text,label = "Text") +
+  facet_wrap(~Connectivity) +
+  scale_x_continuous(breaks = c(0,0.2,0.4,0.6, 0.8,1)) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
+  labs(x="Variable", y="Trait Synchrony")
+
+EU1
+
+file.name1 <- paste0(out.dir, "sync_sep_models_EU.jpg")
+ggsave(EU1, filename=file.name1, dpi=300, height=5, width=6)
+
+#####USA
+effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= modelUS)
+summary(effects_diversity) #output of what the values are
+
+
+x_div <- as.data.frame(effects_diversity) 
+names(x_div)[3] <- "Sync"
+names(x_div)[1] <- "Value"
+x_div$Variable <- "diversity2"
+
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= modelUS)
+summary(effects_annualAvg) #output of what the values are
+
+x_temp <- as.data.frame(effects_annualAvg)
+names(x_temp)[3] <- "Sync"
+names(x_temp)[1] <- "Value"
+x_temp$Variable <- "annual_avg"
+x_temp
+
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= modelUS)
+summary(effects_distance) #output of what the values are
+
+x_dist <- as.data.frame(effects_distance)
+names(x_dist)[3] <- "Sync"
+names(x_dist)[1] <- "Value"
+x_dist$Variable <- "distance"
+x_dist
+
+x_all <- bind_rows(x_div, x_temp, x_dist)
+x_all
+## add column for variable name
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+x_all$Connectivity <- as.factor(x_all$Connectivity)
+x_all$Connectivity <- recode_factor(x_all$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+head(allsyncxEU)
+
+allsyncx1US <- allsyncxUS %>%
+  pivot_longer(c(diversity2, annual_avg, distance), names_to = "Variable", values_to = "Value")
+
+
+US1<-ggplot() +
+  # geom_point(data = allsyncx1, aes(x=Value, y=Sync, colour = Variable), size = 0.5) +
+  geom_line(data=x_all, aes(x=Value, y=Sync, colour = Variable)) +
+  geom_ribbon(data= x_all, aes(x=Value, ymin=lower, ymax=upper, colour = Variable), alpha= 0.3) +
+  # annotate("text", x = 0.9, y =1.1, label = "r2 =0.378") +
+  # geom_text(data = ann_text,label = "Text") +
+  facet_wrap(~Connectivity) +
+  scale_x_continuous(breaks = c(0,0.2,0.4,0.6, 0.8,1)) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
+  labs(x="Variable", y="Trait Synchrony")
+
+US1
+
+file.name1 <- paste0(out.dir, "sync_sep_models_US.jpg")
+ggsave(US1, filename=file.name1, dpi=300, height=5, width=6)
+
+#### australia
+
+effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= modelAU)
+summary(effects_diversity) #output of what the values are
+
+
+x_div <- as.data.frame(effects_diversity) 
+names(x_div)[3] <- "Sync"
+names(x_div)[1] <- "Value"
+x_div$Variable <- "diversity2"
+
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= modelAU)
+summary(effects_annualAvg) #output of what the values are
+
+x_temp <- as.data.frame(effects_annualAvg)
+names(x_temp)[3] <- "Sync"
+names(x_temp)[1] <- "Value"
+x_temp$Variable <- "annual_avg"
+x_temp
+
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= modelAU)
+summary(effects_distance) #output of what the values are
+
+x_dist <- as.data.frame(effects_distance)
+names(x_dist)[3] <- "Sync"
+names(x_dist)[1] <- "Value"
+x_dist$Variable <- "distance"
+x_dist
+
+x_all <- bind_rows(x_div, x_temp, x_dist)
+x_all
+## add column for variable name
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+x_all$Connectivity <- as.factor(x_all$Connectivity)
+x_all$Connectivity <- recode_factor(x_all$Connectivity, "1" = "Within Basin", "0" = "Between Basin")
+
+head(allsyncxEU)
+
+# allsyncx1US <- allsyncxUS %>%
+#   pivot_longer(c(diversity2, annual_avg, distance), names_to = "Variable", values_to = "Value")
+
+
+AU1<-ggplot() +
+  # geom_point(data = allsyncx1, aes(x=Value, y=Sync, colour = Variable), size = 0.5) +
+  geom_line(data=x_all, aes(x=Value, y=Sync, colour = Variable)) +
+  geom_ribbon(data= x_all, aes(x=Value, ymin=lower, ymax=upper, colour = Variable), alpha= 0.3) +
+  # annotate("text", x = 0.9, y =1.1, label = "r2 =0.378") +
+  # geom_text(data = ann_text,label = "Text") +
+  facet_wrap(~Connectivity) +
+  scale_x_continuous(breaks = c(0,0.2,0.4,0.6, 0.8,1)) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
+  labs(x="Variable", y="Trait Synchrony")
+
+AU1
+
+file.name1 <- paste0(out.dir, "sync_sep_models_AU.jpg")
+ggsave(AU1, filename=file.name1, dpi=300, height=5, width=6)
+
+
+## combine plots
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.2,  #To change axis title size
+          axis.textsize.x = 1.1,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1.1)  #To change y axis text size
+
+allplot <- plot_grid(EU1, US1, AU1,
+                     labels = c("EU", "US", "AU"),
+                     ncol = 2, nrow = 2)
+
+allplot
+
+file.name1 <- paste0(out.dir, "sync_sep_models_allregions.jpg")
+ggsave(allplot, filename=file.name1, dpi=300, height=6, width=9)
 
 # Membership model with random slopes -------------------------------------
 
@@ -576,6 +860,8 @@ Waj <- interaction_weights(Wa, Wj)
 
 ## model with new diversity measure 
 
+## random slope for temp
+
 mem_mixed1 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
                                     + (1 + annual_avg| Region ) + ## add predictors here to get random effect per region
                                       (1 + annual_avg| RegionXSiteName), 
@@ -583,10 +869,326 @@ mem_mixed1 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Co
                                     REML = T,
                                     data = allsyncx)
 
-# (annual_avg +distance+diversity2))*Connectivity
 summary(mem_mixed1, ddf = "Satterthwaite") 
-ranova(mem_mixed1, ddf = "Satterthwaite")
-r2_nakagawa(mem_mixed1) ## 0.693
+# ranova(mem_mixed1, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed1) ## 0.573
+
+### plots 
+class(mem_mixed1) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+estsTemp <- sjPlot::plot_model(mem_mixed1, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+estsTemp
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_random_slope_temp.jpg")
+ggsave(estsTemp, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed1, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.2,  #To change axis title size
+          axis.textsize.x = 1,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 0.9)  #To change y axis text size
+
+# ?set_theme
+
+tempPlot <- sjPlot::plot_model(mem_mixed1, type="pred", terms=c("annual_avg","Region", "Connectivity"),
+                   axis.title = c("Temperature Synchrony", "Thermal Trait Synchrony"), pred.type="re", 
+                   ci.lvl=NA)
+
+tempPlot
+
+
+divPlot <- sjPlot::plot_model(mem_mixed1, type="pred", terms=c("diversity2","Region", "Connectivity"),
+                               axis.title = c("Trait Diversity", "Thermal Trait Synchrony"), 
+                              pred.type="re", ci.lvl=NA)
+divPlot
+
+distPlot <- sjPlot::plot_model(mem_mixed1, type="pred", terms=c("distance","Region", "Connectivity"),
+                              axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                              pred.type="re", ci.lvl=NA)
+distPlot
+
+## combine plots
+library("cowplot")
+library(ggpubr)
+# install.packages("ggpubr")
+
+tempSl <- plot_grid(tempPlot, divPlot, distPlot,
+          labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+tempSl
+file.name1 <- paste0(out.dir, "interactions_random_slope_temp.jpg")
+ggsave(tempSl, filename=file.name1, dpi=300, height=8, width=10)
+
+### random slope for diversity
+
+
+mem_mixed2 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + diversity2| Region ) + ## add predictors here to get random effect per region
+                                      (1 + diversity2| RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+# mem_mixed2
+summary(mem_mixed2, ddf = "Satterthwaite") 
+# ranova(mem_mixed1, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed2) ## 0.565
+
+### plots 
+class(mem_mixed2) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+estsDiv <- sjPlot::plot_model(mem_mixed2, 
+                           show.values=TRUE, show.p=TRUE)
+
+estsDiv
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_random_slope_diversity.jpg")
+ggsave(estsDiv, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed2, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.3,  #To change axis title size
+          axis.textsize.x = 1.2,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
+
+# ?set_theme
+
+tempPlot2 <- sjPlot::plot_model(mem_mixed2, type="pred", terms=c("annual_avg","Region", "Connectivity"),
+                               axis.title = c("Temperature Synchrony", "Thermal Trait Synchrony"), pred.type="re", 
+                               ci.lvl=NA)
+
+divPlot2 <- sjPlot::plot_model(mem_mixed2, type="pred", terms=c("diversity2","Region", "Connectivity"),
+                              axis.title = c("Trait Diversity", "Thermal Trait Synchrony"), 
+                              pred.type="re", ci.lvl=NA)
+divPlot2
+
+distPlot2 <- sjPlot::plot_model(mem_mixed2, type="pred", terms=c("distance","Region", "Connectivity"),
+                               axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                               pred.type="re", ci.lvl=NA)
+distPlot2
+
+## combine plots
+library("cowplot")
+library(ggpubr)
+install.packages("ggpubr")
+
+divsl <- plot_grid(tempPlot2, divPlot2, distPlot2,
+          labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+
+file.name1 <- paste0(out.dir, "interactions_random_slope_diversity.jpg")
+ggsave(divsl, filename=file.name1, dpi=300, height=8, width=10)
+
+### random slope for distance
+
+
+mem_mixed3 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+                                    + (1 + distance| Region ) + ## add predictors here to get random effect per region
+                                      (1 + distance| RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+summary(mem_mixed3, ddf = "Satterthwaite") 
+# ranova(mem_mixed1, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed3) ## 0.46
+
+### plots 
+class(mem_mixed3) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+estsDist <- sjPlot::plot_model(mem_mixed3, 
+                           show.values=TRUE, show.p=TRUE)
+
+estsDist
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_random_slope_distance.jpg")
+ggsave(estsDist, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed3, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.2,  #To change axis title size
+          axis.textsize.x = 1,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 0.9)  #To change y axis text size
+
+# ?set_theme
+
+tempPlot3 <- sjPlot::plot_model(mem_mixed3, type="pred", terms=c("annual_avg","Region", "Connectivity"),
+                                axis.title = c("Temperature Synchrony", "Thermal Trait Synchrony"), pred.type="re", 
+                                ci.lvl=NA)
+
+divPlot3 <- sjPlot::plot_model(mem_mixed3, type="pred", terms=c("diversity2","Region", "Connectivity"),
+                               axis.title = c("Trait Diversity", "Thermal Trait Synchrony"), 
+                               pred.type="re", ci.lvl=NA)
+divPlot3
+
+distPlot3 <- sjPlot::plot_model(mem_mixed3, type="pred", terms=c("distance","Region", "Connectivity"),
+                                axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                                pred.type="re", ci.lvl=NA)
+distPlot3
+
+## combine plots
+library("cowplot")
+library(ggpubr)
+install.packages("ggpubr")
+
+distsl <- plot_grid(tempPlot3, divPlot3, distPlot3,
+          labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+
+file.name1 <- paste0(out.dir, "interactions_random_slope_distance.jpg")
+ggsave(distsl, filename=file.name1, dpi=300, height=8, width=10)
+
+
+allplot <- plot_grid(tempPlot, divPlot2, distPlot3,
+          labels = c("A", "B", "C"),
+          ncol = 2, nrow = 2)
+allplot
+
+file.name1 <- paste0(out.dir, "interactions_random_slope_all_combined.jpg")
+ggsave(allplot, filename=file.name1, dpi=300, height=8, width=10)
+
+### ggplot
+
+## get fitted values
+
+allsyncx$fittedVals <- predict(mem_mixed1)
+
+## make variables long
+allsyncx1 <- allsyncx %>%
+  pivot_longer(c(diversity2, annual_avg, distance), names_to = "Variable", values_to = "Value")
+
+## get model coefs
+model_coefs <- coef(mem_mixed1)$Region %>% 
+  rename(Intercept = `(Intercept)`,Connectivity = "ConnectivityWithin Basin") %>% 
+  rownames_to_column("Region") %>%
+  pivot_longer(diversity2:Connectivity, names_to = "Variable", values_to ="Slopes" )
+
+model_coefs
+
+unique(model_coefs$Variable)
+unique(allsyncx1$Variable)
+  
+allsyncx1Coefs <- left_join(allsyncx1, model_coefs, by = c("Region", "Variable"))
+
+names(allsyncx1Coefs)
+  
+  model_coef_plot <- ggplot(data = allsyncx1Coefs, 
+                            mapping = aes(x = Value, 
+                                          y = Sync, 
+                                          colour = Region, lty = Variable)) +
+    # geom_point(na.rm = T, alpha = 0.5) +
+    geom_abline(aes(intercept = Intercept, 
+                    slope = Slopes,
+                    colour = Region, lty = Variable),size = 0.5) +
+    facet_wrap(~Connectivity)+
+    scale_y_continuous() +
+    scale_x_continuous() +
+    theme(legend.position = "top")
+  
+  # see the plot
+  model_coef_plot
+
+## plot with fitted values
+ggplot(allsyncx1,aes(Value, Sync, group=Region, col=Region, shape=Variable)) + 
+  facet_grid(~Connectivity) +
+  geom_line(aes(y=fittedVals), size=0.8) +
+  # geom_point(alpha = 0.3) + 
+  # geom_hline(yintercept=0, linetype="dashed") +
+  theme_bw()
+
+
+
+effects_diversity <- effects::effect(term= "diversity2:Connectivity", mod= mem_mixed1)
+summary(effects_diversity) #output of what the values are
+
+
+x_div <- as.data.frame(effects_diversity) 
+names(x_div)[3] <- "Sync"
+names(x_div)[1] <- "Value"
+x_div$Variable <- "diversity2"
+
+effects_annualAvg <- effects::effect(term= "annual_avg:Connectivity", mod= mem_mixed1)
+summary(effects_annualAvg) #output of what the values are
+
+x_temp <- as.data.frame(effects_annualAvg)
+names(x_temp)[3] <- "Sync"
+names(x_temp)[1] <- "Value"
+x_temp$Variable <- "annual_avg"
+x_temp
+
+effects_distance <- effects::effect(term= "distance:Connectivity", mod= mem_mixed1)
+summary(effects_distance) #output of what the values are
+
+x_dist <- as.data.frame(effects_distance)
+names(x_dist)[3] <- "Sync"
+names(x_dist)[1] <- "Value"
+x_dist$Variable <- "distance"
+x_dist
+
+x_all <- bind_rows(x_div, x_temp, x_dist)
+x_all
+## add column for variable name
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity,  "1" = "Within Basin", "0" = "Between Basin")
+
+x_all$Connectivity <- as.factor(x_all$Connectivity)
+x_all$Connectivity <- recode_factor(x_all$Connectivity,  "1" = "Within Basin", "0" = "Between Basin")
+
+head(allsyncx)
+
+allsyncx1 <- allsyncx %>%
+  pivot_longer(c(diversity2, annual_avg, distance), names_to = "Variable", values_to = "Value")
+
+allsyncx1
+
+div1<-ggplot() +
+  # geom_point(data = allsyncx1, aes(x=Value, y=Sync, colour = Variable), size = 0.5) +
+  geom_line(data=x_all, aes(x=Value, y=Sync, colour = Variable)) +
+  geom_ribbon(data= x_all, aes(x=Value, ymin=lower, ymax=upper, colour = Variable), alpha= 0.3) +
+  facet_wrap(~Connectivity) +
+  # # scale_color_hue(labels = c("Within Basin", "Between Basin")) +
+  # scale_color_discrete(labels = c("Within Basin", "Between Basin")) +
+  labs(x="Variable", y="Trait Synchrony")
+
+div1
+
+file.name1 <- paste0(out.dir, "model_figure.jpg")
+ggsave(div1, filename=file.name1, dpi=300, height=5, width=6)
+
+
+
+
+
 
 mem_mixed2 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
                                     + (1 + annual_avg + diversity2 +distance| Region ) + ## add predictors here to get random effect per region
