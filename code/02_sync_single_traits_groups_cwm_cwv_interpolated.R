@@ -1,5 +1,5 @@
 ### synchrony on single traits
-
+install.packages("overlapping")
 ## packages
 library(tidyverse)
 library(reshape2)
@@ -13,6 +13,7 @@ library(data.table)
 library(gdata)
 library(here)
 library(tidylog)
+library(overlapping)
 
 getwd()
 ## upload fish abundance and site data
@@ -104,15 +105,15 @@ ax=1
         dplyr::select(-c(X, site_year, Country, HydroBasin, CWM,CV,  Latitude, Longitude) ) %>%
         spread(SiteID, CWV) #%>% ## some NAs appear here, don't have all trait scores for all site years
       # head(trait_CWV)
-      # make df wide - CV
-      trait_CV  <- trait_data %>% 
-        dplyr::select(-c(X, site_year, Country, HydroBasin, CWM,CWV,  Latitude, Longitude) ) %>%
-        spread(SiteID, CV) #%>% ## some NAs appear here, don't have all trait scores for all site years
-      # head(trait_CV)
-      # remove non value columns
+      # # make df wide - CV
+      # trait_CV  <- trait_data %>% 
+      #   dplyr::select(-c(X, site_year, Country, HydroBasin, CWM,CWV,  Latitude, Longitude) ) %>%
+      #   spread(SiteID, CV) #%>% ## some NAs appear here, don't have all trait scores for all site years
+      # # head(trait_CV)
+      # # remove non value columns
       trait_CWM <- (trait_CWM)[,-c(1:3)]
       trait_CWV <- (trait_CWV)[,-c(1:3)]
-      trait_CV <- (trait_CV)[,-c(1:3)]
+      # trait_CV <- (trait_CV)[,-c(1:3)]
    
       ### synchrony 
       cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
@@ -132,7 +133,7 @@ ax=1
         
         compute_synchrony(cov(sync_mat))
       })
-      
+      synchrony
       # head(synchrony)
   
       ### diversity: Temporal average of Community Weighted Variance
@@ -161,24 +162,40 @@ ax=1
       # [1] "S1397.S10015" "S1835.S10015" "S1852.S10015" "S2976.S10015" "S3151.S10015" "S3165.S10015"
       # [7] "S3191.S10015" "S3269.S10015" "S3450.S10015" "S4223.S10015"
  
+      # diversity2 <- sapply(seq_len(nrow(cc)), function(k) {
+      #   i <- cc[k,1]
+      #   j <- cc[k,2]
+      #   
+      #   div_mat2 <- matrix(
+      #     c(trait_CV[, i],trait_CV[,j]),
+      #     nrow = 10,
+      #     byrow = F,
+      #     dimnames = list(years,
+      #                     c("site1", "site2")
+      #     )
+      #   )
+      #   
+      #   mean(div_mat2)
+      # 
+      # })
+      # 
+      # # diversity2
+      
+      ## diversity 2: overalpping index on CWM
+
       diversity2 <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
         j <- cc[k,2]
         
-        div_mat2 <- matrix(
-          c(trait_CV[, i],trait_CV[,j]),
-          nrow = 10,
-          byrow = F,
-          dimnames = list(years,
-                          c("site1", "site2")
-          )
-        )
-        
-        mean(div_mat2)
+        ## format data as list
+        div_mat2 <- list(site1 = trait_CWM[, i], site2 = trait_CWM[,j])
       
+        overlap(div_mat2)$OV ## overalp index
+        
       })
       
       # diversity2
+
       
       ### distance: Difference in temporal average of Community Weighted Mean
       

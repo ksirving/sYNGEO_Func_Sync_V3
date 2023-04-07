@@ -22,6 +22,11 @@ library("easystats") ## multicolinearality
 library(lmerMultiMember)
 library("scales")
 
+## doers this work with membership
+# fit.nlmer = nlmer(y ~ power.f(time, k, a, b) ~ k|id, start=list(nlpars=c(k=2, a=1, b=1)), data=D)
+# 
+# https://rdrr.io/cran/lme4/man/nlmer.html
+
 # library(devtools)
 # install_github("jvparidon/lmerMultiMember")
 # install.packages("performance")
@@ -37,12 +42,14 @@ head(allsyncx)
 
 range(allsyncx$diversity2)
 range(allsyncx$distance)
-## scale variables
+## standardize variables
 
 allsyncx <- allsyncx %>%
-  group_by(Region) %>%
-  mutate(distance= rescale(distance, to=c(0,1))) %>%
-  mutate(diversity2= rescale(diversity2, to=c(0,1)))
+  rename(overlap = diversity2)
+  # group_by(Region) %>%
+  # mutate(distance1 = rescale(distance))# %>%
+  # mutate(ValuesSt = (Values - mean(na.omit(Values)))/sd(na.omit(Values))) %>% ## makes negative numbers
+  # pivot_wider(names_from=Metric, values_from = Values)
 
 ## some NAs in sync. find and remove - from sites with 1 spoecies, cannot compute synchrony
 ind <- which(is.na(allsyncx$Sync))
@@ -54,6 +61,364 @@ allsyncx <- na.omit(allsyncx)
 
 out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook Pro/git/sYNGEO_Func_Sync_V3/Figures/"
 
+
+# CORRELATIONS ------------------------------------------------------------
+
+allsyncxCor <- allsyncx %>%
+  select(distance, overlap, annual_avg, DistKM)
+
+syncCor <- cor(allsyncxCor)
+
+
+write.csv(syncCor, "output_data/06_cor_dist_overlap_temp.csv")
+# Modes: spatial decay ----------------------------------------------------
+
+names(allsyncx)
+
+head(allsyncx)
+dim(allsyncx)
+
+hist(allsyncx$diversity)
+hist(allsyncx$overlap)
+hist(allsyncx$distance)
+
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity,  "1" = "Within Basin", "0" = "Between Basin") 
+
+## distance as log and sqrt
+
+allsyncx <- allsyncx %>%
+  mutate(DistKMLog = log(DistKM+1),
+         DistKMsqrt = sqrt(DistKM+1))
+
+range(allsyncx$DistKM)
+
+## rescale diversity measures between 0-1
+# allsyncx$diversity <- rescale(allsyncx$diversity)
+# allsyncx$diversity2 <- rescale(allsyncx$diversity2)
+# allsyncx$distance <- rescale(allsyncx$distance)
+
+# ## make longer to get site names for membership model
+allsyncx <- allsyncx %>%
+  pivot_longer(Site_ID1:Site_ID2, names_to = "SiteNumber", values_to = "SiteName") 
+
+Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
+Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
+Waj <- interaction_weights(Wa, Wj)
+
+## mixed model with distance and connectivity
+## https://www.ncbi.nlm.nih.gov/pmc/articles/PMC8784019/#:~:text=As%20linear%20mixed%2Deffects%20models,associated%20with%20a%20random%20effect.
+## paper suggesting that fewer than 5 levels in Random effect is ok when only looking at fixed effects, but not good when analysing random effects
+
+mem_mixed0 <- lmerMultiMember::lmer(log(Sync) ~ DistKM  *Connectivity
+                                      + (1 | Region ) + ## add predictors here to get random effect per region
+                                      + (1 | RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+spatPlot2a <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("DistKM","Connectivity"),
+                                 axis.title = c("Euclidean Distance KM", "Thermal Trait Synchrony"), pred.type="re", 
+                                 ci.lvl=NA, show.data  = T, dot.size = 0.1)
+
+spatPlot2a 
+
+
+
+summary(mem_mixed0, ddf = "Satterthwaite")
+anova(mem_mixed0, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed0) 
+check_singularity(mem_mixed0) ## False
+
+# lattice::qqmath(mem_mixed1)
+# plot(mem_mixed1, type=c("p","smooth"), col.line=1)
+# check_model(mem_mixed1)
+
+### plots 
+class(mem_mixed0) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed0, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_spatial_decay.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed0, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.3,  #To change axis title size
+          axis.textsize.x = 1.2,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
+
+# ?set_theme
+mem_mixed0
+spatPlot2a <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("DistKM","Connectivity"),
+                                 axis.title = c("Euclidean Distance KM", "Thermal Trait Synchrony"), pred.type="re", 
+                                 ci.lvl=NA, show.data  = T, dot.size = 0.1)
+
+spatPlot2a
+#terms=c("Euclid_Dist_Meters", "Connectivity")
+file.name1 <- paste0(out.dir, "spatial_decay_mem_mod_exp.jpg")
+ggsave(spatPlot2a, filename=file.name1, dpi=300, height=8, width=10)
+
+
+### mixed model only - no membership
+
+
+modelMix<-lmer(formula = Sync ~ log(Euclid_Dist_Meters)  *Connectivity +
+                (1|SiteName),
+              data    = allsyncx) 
+
+modelMix<-lmer(formula = log(Sync) ~ DistKM  *Connectivity +
+                 (1|SiteName),
+               data    = allsyncx) 
+
+summary(modelMix)
+anova(modelMix, ddf = "Satterthwaite")
+r2_nakagawa(modelMix) 
+check_singularity(mem_mixed0) ## False
+
+# lattice::qqmath(mem_mixed1)
+# plot(mem_mixed1, type=c("p","smooth"), col.line=1)
+# check_model(mem_mixed1)
+
+### plots 
+class(mem_mixed0) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed0, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_spatial_decay.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed0, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.3,  #To change axis title size
+          axis.textsize.x = 1.2,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
+
+
+spatPlot3 <- sjPlot::plot_model(modelMix, type="pred", terms=c("DistKM","Connectivity"),
+                                axis.title = c("Euclidean Distance (km)", "Thermal Trait Synchrony"), pred.type="re", 
+                                ci.lvl=NA)
+
+spatPlot3
+#terms=c("Euclid_Dist_Meters", "Connectivity")
+file.name1 <- paste0(out.dir, "spatial_decay_mixed_mod_exp.jpg")
+ggsave(spatPlot3, filename=file.name1, dpi=300, height=8, width=10)
+
+
+# Membership Model: Region as fixed ---------------------------------------
+
+names(allsyncx)
+head(allsyncx)
+dim(allsyncx)
+
+hist(allsyncx$diversity)
+hist(sqrt(allsyncx$diversity2))
+hist(allsyncx$distance)
+
+## connectiovity as a factor and change name 
+allsyncx$Connectivity <- as.factor(allsyncx$Connectivity)
+allsyncx$Connectivity <- recode_factor(allsyncx$Connectivity,  "1" = "Within Basin", "0" = "Between Basin") 
+
+## recode region
+allsyncx$Region <- as.factor(allsyncx$Region)
+allsyncx$Region <- recode_factor(allsyncx$Region,  "USA" = "USA", "Oceania" = "Oceania", "Europe" = "Europe") 
+unique(allsyncx$Region)
+## rescale diversity measures between 0-1
+allsyncx$diversity <- rescale(allsyncx$diversity)
+allsyncx$diversity2 <- rescale(allsyncx$diversity2)
+allsyncx$distance <- rescale(allsyncx$distance)
+
+# ## make longer to get site names for membership model
+allsyncx <- allsyncx %>%
+  pivot_longer(Site_ID1:Site_ID2, names_to = "SiteNumber", values_to = "SiteName")
+
+Wa <- lmerMultiMember::weights_from_vector(allsyncx$Region)
+Wj <- Matrix::fac2sparse(allsyncx$SiteName)  # convert single membership vars to an indicator matrix with fac2sparse()
+Waj <- interaction_weights(Wa, Wj)
+
+## model with new diversity measure
+
+mem_mixed0 <- lmerMultiMember::lmer(Sync ~  (overlap*annual_avg + distance*annual_avg)*Connectivity
+                                    + (1 | Region ) + ## add predictors here to get random effect per region
+                                      (1 | RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+## add in interactions between other variables
+#(annual_avg*log(diversity2) + distance*log(diversity2)) * Connectivity
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed0, ddf = "Satterthwaite")
+anova(mem_mixed0, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed0) 
+check_singularity(mem_mixed0) ## False
+
+# lattice::qqmath(mem_mixed1)
+# plot(mem_mixed1, type=c("p","smooth"), col.line=1)
+# check_model(mem_mixed1)
+
+### plots 
+class(mem_mixed0) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed0, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+file.name1 <- paste0(out.dir, "effect_sizes_diversity2_overlap_region_removed.jpg")
+ggsave(ests, filename=file.name1, dpi=300, height=8, width=10)
+
+estsTab <- sjPlot::tab_model(mem_mixed0, 
+                             show.re.var= TRUE, 
+                             pred.labels =c("(Intercept)", "DistKM", "annual avg", "diversity", "Connectivity"),
+                             dv.labels= "Drivers of Thermal Synchrony")
+
+estsTab
+
+## plot
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.3,  #To change axis title size
+          axis.textsize.x = 1.2,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
+
+theme_set(theme_sjplot())
+
+quantile(allsyncx$annual_avg, probs = c(0.05,0.5,0.95))
+round(quantile(allsyncx$overlap, probs = c(0.05,0.5,0.95)), digits = 3)
+
+tempDiv <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap", "annual_avg [0.68, 0.92, 0.998]"),
+                              axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                              legend.title = "Environmental synchrony")
+tempDiv
+tempDist <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance", "annual_avg [0.68, 0.92, 0.998]"),
+                              axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                              legend.title = "Environmental synchrony")
+tempDist
+tempCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("annual_avg", "Connectivity"),
+                               axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
+                               legend.title = "Connectivity")
+
+divCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap", "Connectivity"),
+                              axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                              legend.title = "Connectivity")
+divCon
+
+distCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance", "Connectivity"),
+                             axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                             legend.title = "Connectivity")
+distCon
+
+tempDistCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance","Connectivity", "annual_avg [0.68, 0.92, 0.998]" ),
+                               axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                               legend.title = "Connectivity")
+tempDistCon
+
+tempDivCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap","Connectivity", "annual_avg [0.68, 0.92, 0.998]" ),
+                                  axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                                  legend.title = "Connectivity")
+
+tempDivCon2 <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("annual_avg","Connectivity", "overlap [0, 0.035, 0.795]" ),
+                                 axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
+                                 legend.title = "Connectivity")
+tempDivCon2
+?plot_model
+## significant interactions
+CompPlotSig <- plot_grid(list(divCon, tempCon, tempDivCon, tempDivCon2)) ## grid figures
+
+##insignificant interactions
+CompPlotInSig <- plot_grid(list(tempDiv, tempDist, distCon, tempDistCon)) ## grid figures
+
+#terms=c("Euclid_Dist_Meters", "Connectivity")
+file.name1 <- paste0(out.dir, "comp_mod_sig_interactions_region_removed.jpg")
+ggsave(CompPlotSig, filename=file.name1, dpi=300, height=12, width=18)
+
+file.name1 <- paste0(out.dir, "comp_mod_insig_interactions_region_removed.jpg")
+ggsave(CompPlotInSig, filename=file.name1, dpi=300, height=10, width=15)
+
+?plot_model
+tempDist <- compPlot1[[2]]
+tempCon <- compPlot1[[3]]
+tempReg <- compPlot1[[4]]
+DivRegion <- compPlot1[[5]]
+DistRegion<- compPlot1[[6]]
+ConReg <- compPlot1[[7]]
+tempDivReg <- compPlot1[[8]]
+tempDistReg <- compPlot1[[9]]
+tempConReg <- compPlot1[[10]]
+
+
+
+## non significant interactions
+CompPlotnon <- plot_grid(list(tempCon, tempReg, ConReg, tempConReg))## grid figures
+
+#terms=c("Euclid_Dist_Meters", "Connectivity")
+file.name1 <- paste0(out.dir, "comp_mod_interactions_non_significant_region_removed.jpg")
+ggsave(CompPlotnon, filename=file.name1, dpi=300, height=8, width=10)
+
+
+
+# compPlot2 <- sjPlot::plot_model(mem_mixed0, type="int", terms=c("annual_avg","distance", "Connectivity","Region"),
+#                                 pred.type="re", 
+#                                 ci.lvl=NA)
+# #axis.title = c("Temp sync", "Thermal Trait Synchrony"),
+# compPlot2
+# #terms=c("Euclid_Dist_Meters", "Connectivity")
+# file.name1 <- paste0(out.dir, "distance_composition_model_by_region.jpg")
+# ggsave(compPlot2, filename=file.name1, dpi=300, height=8, width=10)
+
+
+# conPlot3 <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("annual_avg","overlap", "distance","Connectivity"),
+#                                 pred.type="re", 
+#                                 ci.lvl=NA)
+# 
+# conPlot3
+# #terms=c("Euclid_Dist_Meters", "Connectivity")
+# file.name1 <- paste0(out.dir, "composition_model_by_connectivity.jpg")
+# ggsave(conPlot3, filename=file.name1, dpi=300, height=8, width=10)
+# 
+# 
+# RegPlot3 <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("annual_avg","overlap", "Region","Connectivity"),
+#                                 pred.type="re", 
+#                                ci.lvl=NA)
+# 
+# RegPlot3
+# #terms=c("Euclid_Dist_Meters", "Connectivity")
+# file.name1 <- paste0(out.dir, "composition_model_by_connectivityRegion.jpg")
+# ggsave(RegPlot3, filename=file.name1, dpi=300, height=8, width=10)
+
+
+
 # Membership mixed model --------------------------------------------------
 
 names(allsyncx)
@@ -63,7 +428,7 @@ dim(allsyncx)
 # hist(allsyncx$Sync)
 # hist(allsyncx$distance)
 hist(log(allsyncx$diversity))
-hist(allsyncx$diversity2)
+hist(log(allsyncx$diversity2))
 # hist(allsyncx$annual_avg)
 
 ## connectiovity as a factor and change name 
@@ -86,7 +451,7 @@ Waj <- interaction_weights(Wa, Wj)
 
 ## original model removing 3-way
 
-mem_mixed <- lmerMultiMember::lmer(Sync ~ (annual_avg*log(diversity) + distance*log(diversity)) * Connectivity
+mem_mixed <- lmerMultiMember::lmer(Sync ~ (annual_avg*log(diversity2) + distance*log(diversity2)) * Connectivity
                                    + (1 | Region) + ## add predictors here to get random effect per region
                                      (1 | RegionXSiteName), 
                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
@@ -123,13 +488,13 @@ estsTab
 
 ## model with new diversity measure
 
-mem_mixed0 <- lmerMultiMember::lmer(Sync ~  (diversity2 +distance+annual_avg)*Connectivity
+mem_mixed0 <- lmerMultiMember::lmer(Sync ~  annual
                                     + (1 | Region ) + ## add predictors here to get random effect per region
                                       (1 | RegionXSiteName), 
                                     memberships = list(Region = Wa, RegionXSiteName = Waj), 
                                     REML = T,
                                     data = allsyncx)
-
+# (annual_avg+diversity2 + distance+Connectivity)^2
 # (annual_avg +distance+diversity2))*Connectivity
 summary(mem_mixed0, ddf = "Satterthwaite")
 anova(mem_mixed0, ddf = "Satterthwaite")
@@ -277,7 +642,7 @@ mem_mixed2 <- lmerMultiMember::lmer(Sync ~  diversity2
                                     REML = T,
                                     data = allsyncx)
 
-summary(mem_mixed2, ddf = "Satterthwaite") ## negative diversity
+summary(mem_mixed2, ddf = "Satterthwaite") ## positive diversity - overlap
 anova(mem_mixed2, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed2) 
 
@@ -321,7 +686,7 @@ mem_mixed2 <- lmerMultiMember::lmer(Sync ~  annual_avg + Connectivity
                                     REML = T,
                                     data = allsyncx)
 
-summary(mem_mixed2, ddf = "Satterthwaite") ## neg temp, pos connectivity
+summary(mem_mixed2, ddf = "Satterthwaite") ## both positive
 anova(mem_mixed2, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed2) ## lower r2
 
@@ -332,7 +697,7 @@ mem_mixed2 <- lmerMultiMember::lmer(Sync ~  distance + diversity2
                                     REML = T,
                                     data = allsyncx)
 
-summary(mem_mixed2, ddf = "Satterthwaite") ## pos dist, neg div
+summary(mem_mixed2, ddf = "Satterthwaite") ## both positive
 anova(mem_mixed2, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed2) 
 
@@ -343,7 +708,7 @@ mem_mixed2 <- lmerMultiMember::lmer(Sync ~  distance + diversity2 +annual_avg
                                     REML = T,
                                     data = allsyncx)
 
-summary(mem_mixed2, ddf = "Satterthwaite") ## neg temp & div, pos dist
+summary(mem_mixed2, ddf = "Satterthwaite") ## neg temp, pos dist & div
 anova(mem_mixed2, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed2) 
 
@@ -366,7 +731,7 @@ mem_mixed2 <- lmerMultiMember::lmer(Sync ~  (annual_avg*diversity2 + distance*di
                                     REML = T,
                                     data = allsyncx)
 
-summary(mem_mixed2, ddf = "Satterthwaite") ## neg dist, temp and div, pos connectivity
+summary(mem_mixed2, ddf = "Satterthwaite") ## neg dist and div, neg connectivity & temp
 anova(mem_mixed2, ddf = "Satterthwaite")
 r2_nakagawa(mem_mixed2) 
 

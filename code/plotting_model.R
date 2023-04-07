@@ -3,46 +3,14 @@
 # load packages
 library(sjPlot)
 library(sjmisc)
-library(sjlabelled)
-
-# load sample data set.
+library(ggplot2)
 data(efc)
+theme_set(theme_sjplot())
 head(efc)
-head(sleepstudy)
+# make categorical
+efc$c161sex <- to_factor(efc$e16sex)
 
-library(lme4)
-fit <- lmer(Reaction ~ Days + (Days | Subject), sleepstudy)
-fit
-# prepare group variable
-efc$grp = as.factor(efc$e15relat)
-levels(x = efc$grp) <- get_labels(efc$e15relat)
+# fit model with interaction
+fit <- lm(neg_c_7 ~ c12hour + barthtot * c161sex, data = efc)
 
-
-# data frame for fitted model
-mydf <- data.frame(neg_c_7 = efc$neg_c_7,
-                   sex = to_factor(efc$c161sex),
-                   c12hour = efc$c12hour,
-                   barthel = efc$barthtot,
-                   grp = efc$grp)
-
-head(mydf)
-unique(mydf$grp)
-# fit 2nd model
-fit2 <- lmer(neg_c_7 ~ sex + c12hour + barthel + (1| grp), data = mydf)
-summary(fit2)
-plot_model(fit)
-
-plot_model(fit2, type = "slope", vars = "c12hour")
-# ?plot_model
-
-ests <- sjPlot::plot_model(fit2,
-                           show.values=TRUE, show.p=TRUE)
-
-ests
-
-plot_model(fit2,type="pred",
-                  terms=c("c12hour","grp"))
-
-fm1 <- lmer("Reaction ~ Days + (Days | Subject)", sleepstudy)
-
-sjPlot::plot_model(fm1, type="pred", terms=c("Days","Subject"), pred.type="re", ci.lvl=NA)
+plot_model(fit, type = "pred", terms = c("barthtot", "c161sex"))
