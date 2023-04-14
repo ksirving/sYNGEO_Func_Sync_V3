@@ -1,5 +1,5 @@
 ### synchrony on single traits
-install.packages("overlapping")
+# install.packages("overlapping")
 ## packages
 library(tidyverse)
 library(reshape2)
@@ -93,7 +93,7 @@ ax=1
       # sum(is.na(trait_data))
       # head(trait_data)
       years <- unique( trait_data$Year)
-      years
+      # years
       
       # make df wide - mean
       trait_CWM  <- trait_data %>% 
@@ -130,32 +130,32 @@ ax=1
             c("site1", "site2")
           )
         )
-        
+        # sync_mat
         compute_synchrony(cov(sync_mat))
       })
-      synchrony
+      # synchrony
       # head(synchrony)
   
       ### diversity: Temporal average of Community Weighted Variance
       
-      cc <- expand.grid(colnames(trait_CWV), colnames(trait_CWV), KEEP.OUT.ATTRS = FALSE)
+      # cc <- expand.grid(colnames(trait_CWV), colnames(trait_CWV), KEEP.OUT.ATTRS = FALSE)
      
-      diversity <- sapply(seq_len(nrow(cc)), function(k) {
-        i <- cc[k,1]
-        j <- cc[k,2]
-        
-        div_mat <- matrix(
-          c(trait_CWV[, i],trait_CWV[,j]),
-          nrow = 10,
-          byrow = F,
-          dimnames = list(years,
-                          c("site1", "site2")
-          )
-        )
-    
-        mean(div_mat)
-        
-      })
+      # diversity <- sapply(seq_len(nrow(cc)), function(k) {
+      #   i <- cc[k,1]
+      #   j <- cc[k,2]
+      #   
+      #   div_mat <- matrix(
+      #     c(trait_CWV[, i],trait_CWV[,j]),
+      #     nrow = 10,
+      #     byrow = F,
+      #     dimnames = list(years,
+      #                     c("site1", "site2")
+      #     )
+      #   )
+      # 
+      #   mean(div_mat)
+      #   
+      # })
       
       ## diversity 2: coeficient of variation on thermal index
       
@@ -189,9 +189,10 @@ ax=1
         
         ## format data as list
         div_mat2 <- list(site1 = trait_CWM[, i], site2 = trait_CWM[,j])
-      
+        # div_mat2
+        # sync_mat
         overlap(div_mat2)$OV ## overalp index
-        
+       
       })
       
       # diversity2
@@ -199,7 +200,7 @@ ax=1
       
       ### distance: Difference in temporal average of Community Weighted Mean
       
-      cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
+      # cc <- expand.grid(colnames(trait_CWM), colnames(trait_CWM), KEEP.OUT.ATTRS = FALSE)
 
       distance <- sapply(seq_len(nrow(cc)), function(k) {
         i <- cc[k,1]
@@ -213,15 +214,16 @@ ax=1
                           c("site1", "site2")
           )
         )
-        dist_mat
-        mean(dist_mat[,1]/dist_mat[,2])
         
+
+        abs(mean(dist_mat[,1])-mean(dist_mat[,2]))/mean(dist_mat[,2])
+      
       })
       
       
       ## combine all
-      synchrony <- cbind(cc, synchrony, distance, diversity, diversity2)
-      synchrony
+      synchrony <- cbind(cc, synchrony, distance,  diversity2)
+      # synchrony
       ## add traits and region
       synchrony <- synchrony %>%
         mutate(Trait = Ntraits[ax], Region = regionsID[region])
@@ -357,8 +359,9 @@ for (region in 1:length(regionsID)) {
     trait_temp <- as.data.frame(trait_temp[,-c(1:3)])
 
     ### synchrony 
+
     cc <- expand.grid(colnames(trait_temp), colnames(trait_temp), KEEP.OUT.ATTRS = FALSE)
-    
+
     synchrony <- sapply(seq_len(nrow(cc)), function(k) {
       i <- cc[k,1]
       j <- cc[k,2]
@@ -371,8 +374,9 @@ for (region in 1:length(regionsID)) {
                         c("site1", "site2")
         )
       )
-  
+
       compute_synchrony(cov(sync_mat))
+
     })
     
     synchrony<- cbind(cc,synchrony) 

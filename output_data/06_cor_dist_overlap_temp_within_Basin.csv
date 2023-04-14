@@ -1,0 +1,5 @@
+,distance,overlap,annual_avg,DistKM
+distance,1.00,-0.58,-0.25,0.14
+overlap,-0.58,1.00,0.04,-0.04
+annual_avg,-0.25,0.04,1.00,-0.55
+DistKM,0.14,-0.04,-0.55,1.00

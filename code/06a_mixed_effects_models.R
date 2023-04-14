@@ -64,13 +64,35 @@ out.dir <- "/Users/katieirving/OneDrive - SCCWRP/Documents - Katie’s MacBook P
 
 # CORRELATIONS ------------------------------------------------------------
 
+## all
 allsyncxCor <- allsyncx %>%
   select(distance, overlap, annual_avg, DistKM)
 
 syncCor <- cor(allsyncxCor)
-
-
+syncCor
 write.csv(syncCor, "output_data/06_cor_dist_overlap_temp.csv")
+
+## within basin
+allsyncxCorWithin <- allsyncx %>%
+  filter(Connectivity == 1) %>%
+  select(distance, overlap, annual_avg, DistKM)
+allsyncxCorWithin
+syncCorwithin <- cor(allsyncxCorWithin)
+
+write.csv(syncCorwithin, "output_data/06_cor_dist_overlap_temp_within_Basin.csv")
+
+## between basin
+allsyncxCorBetween <- allsyncx %>%
+  filter(Connectivity == 0) %>%
+  select(distance, overlap, annual_avg, DistKM)
+
+syncCorBetween <- cor(allsyncxCorBetween)
+
+write.csv(syncCorBetween, "output_data/06_cor_dist_overlap_temp_between_Basin.csv")
+
+syncCorwithin
+syncCorBetween
+
 # Modes: spatial decay ----------------------------------------------------
 
 names(allsyncx)
@@ -93,6 +115,23 @@ allsyncx <- allsyncx %>%
          DistKMsqrt = sqrt(DistKM+1))
 
 range(allsyncx$DistKM)
+
+withinB <- allsyncx %>%
+  filter(Connectivity == "Within Basin")
+
+BetweenB <- allsyncx %>%
+  filter(Connectivity == "Between Basin", Sync ==1) 
+
+length(unique(BetweenB$Site_ID2))
+length(unique(BetweenB$Site_ID1))
+length(unique(allsyncx$Site_ID2))
+
+
+round(range(na.omit(withinB$DistKM), digits =2))
+
+round(range(na.omit(BetweenB$DistKM), digits =2))
+
+
 
 ## rescale diversity measures between 0-1
 # allsyncx$diversity <- rescale(allsyncx$diversity)
@@ -120,7 +159,7 @@ mem_mixed0 <- lmerMultiMember::lmer(log(Sync) ~ DistKM  *Connectivity
 
 spatPlot2a <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("DistKM","Connectivity"),
                                  axis.title = c("Euclidean Distance KM", "Thermal Trait Synchrony"), pred.type="re", 
-                                 ci.lvl=NA, show.data  = T, dot.size = 0.1)
+                                 ci.lvl=NA, show.data  = T, dot.size = 0.2)
 
 spatPlot2a 
 
@@ -166,7 +205,7 @@ set_theme(base = theme_classic(), #To remove the background color and the grids
 mem_mixed0
 spatPlot2a <- sjPlot::plot_model(mem_mixed0, type="pred", terms=c("DistKM","Connectivity"),
                                  axis.title = c("Euclidean Distance KM", "Thermal Trait Synchrony"), pred.type="re", 
-                                 ci.lvl=NA, show.data  = T, dot.size = 0.1)
+                                 ci.lvl=NA, show.data  = T, dot.size = 0.3)
 
 spatPlot2a
 #terms=c("Euclid_Dist_Meters", "Connectivity")
@@ -302,7 +341,6 @@ estsTab <- sjPlot::tab_model(mem_mixed0,
 
 estsTab
 
-## plot
 set_theme(base = theme_classic(), #To remove the background color and the grids
           theme.font = 'serif',   #To change the font type
           axis.title.size = 1.3,  #To change axis title size
@@ -322,35 +360,35 @@ tempDiv <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap", "annu
                               legend.title = "Environmental synchrony")
 tempDiv
 tempDist <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance", "annual_avg [0.68, 0.92, 0.998]"),
-                              axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
-                              legend.title = "Environmental synchrony")
+                               axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                               legend.title = "Environmental synchrony")
 tempDist
 tempCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("annual_avg", "Connectivity"),
-                               axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
-                               legend.title = "Connectivity")
+                              axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
+                              legend.title = "Connectivity")
 
 divCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap", "Connectivity"),
-                              axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
-                              legend.title = "Connectivity")
+                             axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                             legend.title = "Connectivity")
 divCon
 
 distCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance", "Connectivity"),
-                             axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
-                             legend.title = "Connectivity")
+                              axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                              legend.title = "Connectivity")
 distCon
 
 tempDistCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance","Connectivity", "annual_avg [0.68, 0.92, 0.998]" ),
-                               axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
-                               legend.title = "Connectivity")
+                                  axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                                  legend.title = "Connectivity")
 tempDistCon
 
 tempDivCon <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap","Connectivity", "annual_avg [0.68, 0.92, 0.998]" ),
-                                  axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
-                                  legend.title = "Connectivity")
+                                 axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                                 legend.title = "Connectivity")
 
 tempDivCon2 <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("annual_avg","Connectivity", "overlap [0, 0.035, 0.795]" ),
-                                 axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
-                                 legend.title = "Connectivity")
+                                  axis.title = c("Environmental synchrony", "Thermal Trait Synchrony"), 
+                                  legend.title = "Connectivity")
 tempDivCon2
 ?plot_model
 ## significant interactions
@@ -361,6 +399,79 @@ CompPlotInSig <- plot_grid(list(tempDiv, tempDist, distCon, tempDistCon)) ## gri
 
 #terms=c("Euclid_Dist_Meters", "Connectivity")
 file.name1 <- paste0(out.dir, "comp_mod_sig_interactions_region_removed.jpg")
+ggsave(CompPlotSig, filename=file.name1, dpi=300, height=12, width=18)
+
+file.name1 <- paste0(out.dir, "comp_mod_insig_interactions_region_removed.jpg")
+ggsave(CompPlotInSig, filename=file.name1, dpi=300, height=10, width=15)
+
+### model selection 
+mem_mixed1 <- lmerMultiMember::lmer(Sync ~  annual_avg*(overlap+distance)  #Connectivity
+                                    + (1 | Region ) + ## add predictors here to get random effect per region
+                                      (1 | RegionXSiteName), 
+                                    memberships = list(Region = Wa, RegionXSiteName = Waj), 
+                                    REML = T,
+                                    data = allsyncx)
+
+## add in interactions between other variables
+#(annual_avg*log(diversity2) + distance*log(diversity2)) * Connectivity
+# (annual_avg +distance+diversity2))*Connectivity
+summary(mem_mixed1, ddf = "Satterthwaite")
+anova(mem_mixed1, ddf = "Satterthwaite")
+r2_nakagawa(mem_mixed1) 
+
+### plots 
+class(mem_mixed1) <- "lmerModLmerTest"
+# sjPlot::plot_model(mem_mixed) 
+ests <- sjPlot::plot_model(mem_mixed1, 
+                           show.values=TRUE, show.p=TRUE,
+                           title="Drivers of Thermal Synchrony")
+
+ests
+
+## plot
+set_theme(base = theme_classic(), #To remove the background color and the grids
+          theme.font = 'serif',   #To change the font type
+          axis.title.size = 1.3,  #To change axis title size
+          axis.textsize.x = 1.2,    #To change x axis text size
+          # axis.angle.x = 60,      #To change x axis text angle
+          # axis.hjust.x = 1,
+          # axis.ticksmar = 50,
+          axis.textsize.y = 1)  #To change y axis text size
+
+theme_set(theme_sjplot())
+
+quantile(allsyncx$annual_avg, probs = c(0.05,0.5,0.95))
+round(quantile(allsyncx$overlap, probs = c(0.05,0.5,0.95)), digits = 3)
+round(quantile(allsyncx$distance, probs = c(0.05,0.5,0.95)), digits = 3)
+
+
+tempDiv <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap",  "annual_avg [0.68, 0.92, 0.998]"),
+                              axis.title = c("Trait Overlap", "Thermal Trait Synchrony"), 
+                              legend.title = "Environmental synchrony")
+
+
+tempDist <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("distance",  "annual_avg [0.68, 0.92, 0.998]"),
+                              axis.title = c("Trait Distance", "Thermal Trait Synchrony"), 
+                              legend.title = "Environmental synchrony")
+
+Divtemp <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("overlap",  "annual_avg [0.68, 0.92, 0.998]"),
+                              axis.title = c("Environmental Synchrony", "Thermal Trait Synchrony"), 
+                              legend.title = "Trait Overlap")
+
+
+Disttemp <- sjPlot::plot_model(mem_mixed0, type="pred", terms= c("annual_avg",  "distance [0.84, 0.98, 1.13]"),
+                               axis.title = c("Environmental Synchrony", "Thermal Trait Synchrony"), 
+                               legend.title = "Trait Distance")
+
+tempDist
+## significant interactions
+CompPlotSig <- plot_grid(list(tempDiv, tempDist, Divtemp, Disttemp)) ## grid figures
+
+##insignificant interactions
+CompPlotInSig <- plot_grid(list(tempDiv, tempDist, distCon, tempDistCon)) ## grid figures
+
+#terms=c("Euclid_Dist_Meters", "Connectivity")
+file.name1 <- paste0(out.dir, "comp_mod_sig_interactions_region_connectivity_removed.jpg")
 ggsave(CompPlotSig, filename=file.name1, dpi=300, height=12, width=18)
 
 file.name1 <- paste0(out.dir, "comp_mod_insig_interactions_region_removed.jpg")

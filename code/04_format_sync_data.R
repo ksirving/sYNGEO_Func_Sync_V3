@@ -37,7 +37,7 @@ tempsync <- syncDF %>%
   pivot_wider(names_from = Metric, values_from = synchrony) %>%
   filter( !Site_ID1 == Site_ID2)## remove pairs comrised of same sites
 head(tempsync)
-
+range(tempsync$annual_avg)
 ## checking missing pairs script 5a
 
 # singSpeciesorig <- tempsync %>%

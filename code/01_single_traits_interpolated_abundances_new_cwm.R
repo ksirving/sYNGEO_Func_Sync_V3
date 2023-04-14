@@ -385,7 +385,8 @@ comMeanGeo ## some NAs in CVwhere only 1 species in site and can't be calculated
 ## save
 write.csv(comMeanGeo, "output_data/01_trt_single_traits_interpolated_cwm_cmv.csv")
 
-
+test <- read.csv("output_data/01_trt_single_traits_interpolated_cwm_cmv.csv")
+test
 # Check large means -------------------------------------------------------
 
 round(range(na.omit(comMeanGeo$CWM)), digits = 1)
